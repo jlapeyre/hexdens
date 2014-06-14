@@ -3,7 +3,7 @@
 eval 'exec perl -x -wS $0 ${1+"$@"}'
   if 0;
 
-our $VERSION = '0.05';
+our $VERSION = '0.010';
 
 =head1  NAME
 
@@ -12,19 +12,20 @@ or pdf format.
 
 =head1  SYNOPSIS
 
-usage: hexdens [options] F<infilename>
+usage: hexdens [options] F<infilename> ...
 
 =head1 DESCRIPTION
 
-hexdens writes color or grayscale density plots from input data on a
-triangular lattice (or, optionally, a square lattice.) For the
-triangular(square) lattice, each coordinate pair in the input file is covered
-with a hexagon(square).  The output file format is PostScript or PDF. To run,
-hexdens requires only a standard perl installation, which is present
-on all Linux and nearly all Unix machines (Except if you want to
-generate eps or pdf, in which case gs is required; see below.) Hexdens is a
-single file that needs no compilation or installation.  It generates
-its own documentation and parameter files.
+hexdens reads data from the input files specified on command line and,
+for each one, writes color or grayscale density plots.  The input data
+is on a triangular lattice (or, optionally, a square lattice.) For the
+triangular(square) lattice, each coordinate pair in the input file is
+covered with a hexagon(square).  The output file format is PostScript
+or PDF. To run, hexdens requires only a standard perl installation,
+which is present on all Linux and nearly all Unix machines (Except if
+you want to generate eps or pdf, in which case gs is required; see
+below.) Hexdens is a single file that needs no compilation or
+installation.  It generates its own documentation and parameter files.
 
 The output file can be one of F<infilename.ps>, F<infilename.eps>, or
 F<infilename.pdf>.  You need to have ghostscript installed in order to
@@ -32,13 +33,15 @@ write eps or pdf.  (All Linux and most Unix installations should have
 ghostscript. It is available for MS platforms. If you can view a
 PostScript document under Linux/Unix/MS Windows you almost certainly
 have ghostscript installed as the backend. )  You may also use some
-external conversion program to get pdf and eps if the files generated
-by hexdens are not suitable.
+external conversion program to get pdf and eps from the ps generated
+by hexdens.
 
 Plotting options, (axes, labels, etc.) are controlled through command line options
-or setting parameters in a parameter file. Type
+or setting parameters in a parameter file. Available command line options
+can be found by typing  B<hexdens -h>.
+Type
 
-hexdens -paramfile
+B<hexdens -paramfile>
 
 to generate the file F<.hexdens> with the default parameters in the
 current directory. Then edit this file to suit your needs. It will be
@@ -57,7 +60,8 @@ the coordinates x,y can be any numbers. But a hexagon is drawn at the
 coordinates of each data point in the input file, so that,
 if a data point exists for each vertex of a
 triangular lattice within a region, all space on the plot is filled
-and no hexagons overlap.
+and no hexagons overlap. You do not have to have a data point for each
+point in the region plotted; there can be holes in the data.
 
 The input data file should have lines of the form
 
@@ -73,6 +77,38 @@ This is  tested under Linux. It should work on MS systems,
 if you install perl. ( and also ghostscript if you want eps or pdf) and
 then probably  modify it somehow.
 
+=head1 EXAMPLES
+
+Say you have data generated at points on a triangular lattice, in a
+file named F<somedata.dat>. Type B<hexdens -paramfile> to generate
+a parameter file (or use one that you previously generated.) This
+creates F<.hexdens>. Look in  F<.hexdens> for the lines that say
+I<Choose Either Squares of Hexagons here>. Edit the file so that
+the  B<#> symbol is in front of the lines that select squares,
+and the B<#> symbol is not in front of lines that select hexagons
+(this is the default). If the distance between nearest neighbors on
+you lattice is not 1, you need to edit the length of the sides of the
+hexagon. For instance, if, your lattice spacing is 3, you need to
+change
+
+$LengthOfSide =   1/ sqrt(3);
+
+to
+
+$LengthOfSide =   1/ sqrt(3) * 3;
+
+Now type 
+
+B<hexdens somedata.dat>
+
+to generate a plot with all the default values.  If there is a data
+point at a nearest neighbor of the first data point in the file, then
+the length of the side can be computed automatically by setting
+
+$AutoLength = 1;
+
+in F<.hexdens>.
+
 =head1 AUTHOR
 
 John Lapeyre <lapeyre@physics.arizona.edu>
@@ -81,7 +117,8 @@ John Lapeyre <lapeyre@physics.arizona.edu>
 
 Hexdens was written quickly to solve a particular need; as a result it
 is missing features and may have bugs.  It has not been tested on a
-wide range of tasks.
+wide range of tasks. Pdf code should take ideas from pdf2ps to improve
+bounding box. Automatic man page generation is broken on some systems.
 
 =head1 FILES
 
@@ -134,7 +171,7 @@ our ($TRUE,$FALSE);
 our ($ParameterList,$Plotwidth,$LandScape,$Xlo_cut,$Xhi_cut,$Ylo_cut,$Yhi_cut,
  $XTickStart,$XTickInt,$YTickStart,$YTickInt,@MagicIntervals,@Divisions,$UseColor,
  $XAxisLabel,$YAxisLabel,$Title,$LBound,$HBound,$TickInterval,$NumberOfSides,
- $LengthOfSide,$Rotation,$PSFormat,$BBPad,$TTick,$BTick,$LTick,$RTick,$PolyBorder,
+ $AutoLength,$LengthOfSide,$Rotation,$PSFormat,$BBPad,$TTick,$BTick,$LTick,$RTick,$PolyBorder,
  $TriHexDraw,$TriHexGray,$NumberPoly,$NumberPolyDig,$NumberPolySciLim,
  $NumberPolyZero,$NumberPolyGray,$NumberPolySciScale,$XAxis,$YAxis,
  $DataNorming,$DataTransformPower,$UseColTrans,$ColTransHi,$ColTransLo,
@@ -179,7 +216,7 @@ $LandScape = 0;
 #$Ylo_cut = -20;
 #$Yhi_cut = 20;
 
-# Tick values are not determined automatically.
+# These are manual tick values. This is currently disabled.
 # These are the starting point and interval for ticks.
 # Ticks are drawn both directions  from start point, till
 # the edge of the plot is reached.
@@ -189,14 +226,15 @@ $YTickStart = 0;
 $YTickInt = 3;
 
 # List of "pleasing" intervals between ticks on graph.
-# Only the first magnitude are listed, higher mags others are inferred:
+# Tick intervals are these numbers times the appropriate
+# power of ten.
 @MagicIntervals = ( 1.0, 2.0, 2.5, 5.0, 10.0 );
 
-# We'll choose from between 2 and 8 tick marks.
+# This chooses between 4 and 8 tick marks.
 # Preference is given to more ticks:
 @Divisions = (7,6,5);  # (include 8 ?)
 
-# Use color or grayscale to denote data valeu
+# Use color or grayscale to denote data value.
 # color 1, grayscale 0
 $UseColor = 1;  # 1 or 0
 
@@ -205,9 +243,20 @@ $YAxisLabel = "y";
 $Title = '  Title ';
 #$Title = "";
 
+# Don't touch these, I think.
 $LBound = 'auto';
 $HBound = 'auto';
 $TickInterval = "auto";
+
+# Choose Either Squares of Hexagons here.
+
+# set this to 1 to compute the nearest neighbor distance
+# and to set the length of the side of the squares or hexagons automatically.
+# This takes more time and requires that there is a data point at a nearest
+# neighbor of the first data point in the file. This will override the
+# LengthOfSide set below.
+
+$AutoLength = 0;
 
 # Select these to plot Hexagons
 # Input x and y values for data should then be
@@ -216,7 +265,6 @@ $TickInterval = "auto";
 # correct hexagon has side length 1/sqrt(3), and is rotated 
 # 30 degrees.
 $NumberOfSides = 6;
-#$LengthOfSide = 1/sqrt(3);
 $LengthOfSide =   1/sqrt(3);
 $Rotation = '30';
 
@@ -425,11 +473,15 @@ sub verbose {
 
     my $shorthelp = <<"EOSHH";
 Usage:
-   hexdens [options] infilename
+
+   hexdens [options] infilename ... 
+
+     infilename ... are the input data files
      Documentation options:
      -h        print this help message.
-     -man      view documentation as  unix  man page.
-     -mandoc  print documentation as man page to hexdens.1
+     -man      view long documentation as  unix  man page.
+               Broken on some platforms (eg, BSD), but -mandoc might still work.
+     -mandoc   print documentation as man page to hexdens.1
      -textdoc  print documentation as plain text to standard output.
      -htmldoc  print documentation to  hexdens.html
 
@@ -437,10 +489,10 @@ Usage:
      -paramfile  write parameter template to the file .hexdens
      -color      make color density plot
      -gray|grey  make grayscale density plot
+     -numberpoly=0|1   argument = 1 means write numeric value in each hexagon.
      -title="The Title"  plot title
      -v        verbose: print more messages during operation.
      -version  print hexdens version number and exit.
-        infilename is the input data file
 EOSHH
 
     $Verbose = 0;
@@ -449,7 +501,7 @@ EOSHH
 
     GetOptions( \%h, 'h', 'version', 'v', 'man', 'mandoc', 'htmldoc',
               'textdoc', 'paramfile', 
-		'color', 'gray','grey', 'title=s');
+		'color', 'gray','grey', 'title=s', 'numberpoly=i' );
 
 # input data file name from command line
 # other arguments are  already taken by GetOptions()
@@ -522,8 +574,9 @@ EOSHH
     if ( exists $h{title} ) {
 	$Title = $h{title};
     }
-
-
+    if ( exists $h{numberpoly} ) {
+	$NumberPoly =  $h{numberpoly}
+    }
     if ( not defined $Infile or $Infile eq '' ){
 	die "No input file specified; try option -h for help.";
     }
@@ -553,9 +606,17 @@ use POSIX;
 
 
 # names of output files
-our $Psfile = "$Infile.ps";
-our $Pdffile = "$Infile.pdf";
-our $Epsfile = "$Infile.eps";
+our $Psfile ;
+our $Pdffile ;
+our $Epsfile ;
+
+sub set_output_file_names {
+    my $Infile = shift; # Infile is global, but this is flexible
+    $Psfile = "$Infile.ps";
+    $Pdffile = "$Infile.pdf";
+    $Epsfile = "$Infile.eps";
+}
+
 
 # sqrt(3)/2 to be written literally into the postscript code.
 our $SST = sprintf("%.6f", sqrt(3)/2);
@@ -677,9 +738,15 @@ sub set_polygon_params {
 sub read_data {
     my $file = shift;  # data filename
     my $i = 0;
+    my $sum = 0;
     my @nums; # temp storage for line of numbers.
     $max_v = undef;
     $min_v = undef;
+    my $min_dist = -1;
+    my $dist;
+    @xs = @ys = @v = ();
+    $XBlo = $XBhi = $YBlo = $YBhi = 0;
+    $Xlo = $Xhi = $Ylo = $Yhi = 0;
     open INH , "<$file" or die "Can't open '$file' for reading.";
     while (<INH>) {
 	next if /^\s*[\#\;\%\!]/;  # skip comments
@@ -688,6 +755,13 @@ sub read_data {
 	$xs[$i] =  $nums[0];
 	$ys[$i] =  $nums[1];
 	$v[$i] =   $nums[2];
+	if ( $AutoLength == 1 and $i != 0 ) {
+	    $dist = ($xs[0]-$xs[$i])*($xs[0]-$xs[$i]) + ($ys[0]-$ys[$i])*($ys[0]-$ys[$i]);
+	    if (  $dist < $min_dist  or  $min_dist == -1 ) {
+		$min_dist = $dist;
+	    }
+	}
+	$sum += $v[$i];
 	$Xlo = $xs[$i] if not defined $Xlo;
 	$Xhi = $xs[$i] if not defined $Xhi;
 	$Ylo = $ys[$i] if not defined $Ylo;
@@ -704,6 +778,18 @@ sub read_data {
 	$min_v = $v[$i] if $v[$i] <  $min_v;
 	$i++;
     }
+    if ( $AutoLength == 1) {
+	verbose "Nearest neighbor distance is " . sqrt($min_dist) ;
+	print STDERR "distance is " . sqrt($min_dist) . "\n";
+	if ( $NumberOfSides == 4 ) {
+	    $LengthOfSide = sqrt($min_dist);
+	}
+	elsif ( $NumberOfSides == 6 ) {
+	    $LengthOfSide = sqrt($min_dist) * 1/sqrt(3);
+	}
+    }
+    verbose "read " . ($#xs+1)  . " data points";
+    verbose "sum of data values $sum";
 
 # Allow for width of hexes on edge
     $Xlo--;
@@ -733,9 +819,11 @@ sub do_norming {
     if ( $DataNorming eq 'linear' or
 	 $DataTransformPower == 1 ) {
 	norm_linear();
+	verbose "doing linear norming";
     }
     elsif ( $DataNorming eq 'power' ) {
 	norm_power($DataTransformPower);
+	verbose "doing power norming";
     }
     else {
 	die '$DataNorming must be set to "linear" or "power"';
@@ -751,6 +839,7 @@ sub norm_linear {
     for ($i=0;$i<@xs;$i++) {
 	$b[$i] = ($v[$i]-$min_v)/($max_v-$min_v);
 	$nlin[$i] = $b[$i];
+#	printf("%e\n", $nlin[$i]);
     }
 }
 
@@ -778,6 +867,7 @@ sub inv_norm_power {
 # in case we only want some of the color range.
 sub all_scale_transform {
     my $i;
+    verbose "Doing linear color transform";
     for ($i=0;$i<@xs;$i++) {
 	$b[$i]	= scale_transform($b[$i]);
     } 
@@ -793,8 +883,10 @@ sub inv_scale_transform {
     return ($x-$ColTransLo) / ($ColTransHi - $ColTransLo);
 }
 
+# apparantly not used
 sub norm_log {
     my ($max_b,$i);
+    verbose "norming and taking log of data";
     for ($i=0;$i<@xs;$i++) {
 	$b[$i] = $v[$i]/$max_v; # normalize
 	$b[$i] = -log($b[$i]);
@@ -1364,6 +1456,8 @@ sub write_output {
     else {
 	print_ps_file($Psfile);
     }
+    system "rm -f $Psfile" . ".tmp";
+    # end of program
 }
 
 
@@ -2351,9 +2445,14 @@ sub calc_bound {
 ###########################################
 # Call the routines to do all the work.
 
-read_data($Infile);
-do_norming();
-all_scale_transform() if $UseColTrans == 1;
-prepare_ps_file();
-write_output();
+
+foreach $Infile ( @ARGV ) {
+    read_data($Infile);
+    do_norming();
+    all_scale_transform() if $UseColTrans == 1;
+    set_output_file_names($Infile);
+    prepare_ps_file();
+    write_output();
+}
+
 

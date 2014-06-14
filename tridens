@@ -24,7 +24,7 @@ GNU General Public License for more details.
 
 package Tridens;
 
-our $VERSION = '0.015';
+our $VERSION = '0.016';
 # use POSIX module for log10 and floor functions
 use POSIX;
 use Pod::Simple::Text; # for processing the docs
@@ -45,7 +45,10 @@ use Text::ParseWords;
 #  Added a bunch of things that would take too much work to list
 #  and is not worth the trouble
 # Nov 15 2009, version 0.15. More refined calculation of height for superscript.
-
+# 0.16 Feb 25 2010 
+#  * set ColorMapLo default to 0.2. 
+#  * add viewerscale feature
+#
 # TODO
 # Give examples:
 # Have program generate data for examples
@@ -60,7 +63,6 @@ use Text::ParseWords;
 # add ability to use rectangles
 # Cannot rotate hexagons or squares if lattice is rotated.
 # Clean up postscript bounding box and page size stuff.
-# check out Mma ColorMap
 
 =begin comment
 
@@ -96,7 +98,7 @@ plots.  The input data is on a triangular lattice (or,
 optionally, a square lattice.) For the triangular(square)
 lattice, each coordinate pair in the input file is covered
 with a hexagon(square).  The output file format is
-PostScript or PDF.
+PostScript or PDF. tridens also operates in an interactive mode.
 
 =head2 Why another plotting program?
 
@@ -119,8 +121,8 @@ do a density plot on a triangular lattice anyway.
 
 =head2 Plotting options
 
-Some plotting options, (axes, labels, etc.) are controlled
-through command line options, more are available by setting
+Most plotting options, (axes, labels, etc.) are controlled
+through command line options or interactively, more are available by setting
 parameters in a parameter file. Command line
 options override settings in the parameter file. If you need to set
 more options than are available on the command line (or prefer to use
@@ -143,7 +145,8 @@ which is a plain text file. If you edit these internal parameters,
 then they become the default parameters.
 In summary parameters are set in this order: 1) internal (default) parameters,
 2) parameters in F<.tridens>, 3) parameters in F<infilename.p>, 4) parameters
-given on the command line. In this list, settings with higher numbers override 
+given on the command line. 5) parameters set interactively.
+In this list, settings with higher numbers override 
 settings with lower numbers.
 
 =head2 Interactive mode
@@ -168,7 +171,8 @@ a second data file is plotted. The following lists all commands recognized in th
 write (or rewrites) the output plot file. If a filename is given as an argument (in single quotes) then
 the data is read (or reread) from the file. If there is no argument, then the most recently read
 data is used. Sometimes, after setting parameters, you will get strange results unless you reread
-the input file.
+the input file. If you have set the option B<-dis> then tridens will try to display the plot
+immediately in ghostview.
 
 =item B<replot>
 
@@ -179,12 +183,13 @@ equivalent to using 'read' and then 'plot'.
 
 =item B<set>   
 
-process the remainder of the line in the same way as command line switches
-For example: C<set -gray -title 'title of plot'>, sets the title and sets grayscale
-mode. C<set -man> displays this manual. C<set -h> lists options.
+process the remainder of the line in the same way as command line switches.
+For example: C<set -cmgray -title 'title of plot'>, sets the title and sets grayscale
+mode. C<set -man> displays this manual. C<set -h> lists options. The leading '-' can
+be omitted from the first option to be set. For example C<set xmin 0> to set the lower
+limit of the x-axis to 0. NOTE: If setting a parameter value that begins with a '-', eg
+'-2' you must use '=' with set. For example: C<set xmin=-2> and C<set title='-x'>.
 
-Note. Due to a bug in perl. You cannot begin a string (for title, labels, etc.) with
-a dash '-'. You can put a space before the dash, for instance.
 
 =item B<show>   
 
@@ -192,17 +197,16 @@ process the remainder of the line in the same way as command line switches, but 
 value rather than setting it. You can optionally omit the leading dash '-' when using show.
 For example:
 
-  tridens> show gray title
+  tridens> show cmgray title
   ColorMap = FALSE
   Title = ''
-
-Show is not completely implemented; there are a few parameters that cannot be 'shown'. As elsewhere
-with options, you can abbreviate the option name with 'show'.
 
 =item B<showall>  
 
 print all plot parameter values preceded by a list of
-command line switches that can be used to set them. An
+command line switches that can be used to set them. This list
+of options is printed because more than one option
+may set the same variable, eg, B<-axis> and B<-noaxis>. An
 optional argument causes showall to print only those
 parameters matching the argument. (The pattern is typically
 a string, but it can be a perl regular expression.)
@@ -213,7 +217,7 @@ containing the string 'axis'.
 =item B<viewer> 
 
 Launch a viewer that displays the plot.
-Useful for instance if the viewer is killed or crashes.
+Useful for instance to relaunch the viewer if it is killed or crashes.
 
 =item B<example> I<N>
 
@@ -408,6 +412,7 @@ from file F<mytdata>. Size of hexagons computed automatically.
 Further examples of plots illustrating the use of various arguments can be generated using B<-ex> I<n>. For instance
 I<tridens -ex 2>  creates the second example plot. You can see the example plot immediately if you
 use I<tridens -display -ex 2>, provided the parameter I<$Viewer> is set to correctly launch a ps/pdf viewer.
+Most of the example plots are not realistic examples, but rather tests of features.
 
 Using I<tridens -exall>, produces all the examples sequentially and launhces the viewer to view them,
 prompting the user after each plot. I<tridens -exall N> instead pauses for N seconds between example
@@ -425,7 +430,8 @@ try reducing the size of the plot with B<-plotwidth>
 
 =head1 OPTIONS
 
-Here are command line options. Any options below that take an
+Here are command line options. They can also be used in interactive
+mode using the 'set' command. Any options below that take an
 argument can have either spaces between the option name and
 the argument or a '=' between the option name and the
 argument. You are only required to give enough of the
@@ -442,11 +448,12 @@ I<FILE> is processed.
 
 =head2    Documentation:
 
-B<-h> print short help message.
+B<-h> print short(ish) help message.
 
-B<-man> view long documentation as  unix  man page. Broken on some platforms (eg, BSD), but -mandoc might still work.
+B<-man> view long documentation as unix man page. Broken on
+some platforms (eg, BSD), but -mandoc might still work.
 
-B<-mandoc> print documentation as man page to tridens.1
+B<-mandoc> print documentation as man page to file tridens.1
 
 B<-htmldoc> print documentation to  tridens.html
 
@@ -463,20 +470,25 @@ processing command line arguments.
 
 =head2     Plot Contents:
 
-B<-square, -s> (default) cause squares to be drawn, not hexagons.
+If  B<-square>, B<-tri>, or B<-circle> are set interactively, then 'replot' rather
+than 'plot' must be used.
+
+B<-square> (default) cause squares to be drawn at data coordinates, not hexagons.
 
 B<-tri>  assume a triangular lattice, I<ie> hexagons are drawn.
 
+B<-circle>  draw circles on data coordinates.
+
 B<-sidelength> I<SIDELENGTH> length of sides of polygons covering the density plot.
 
-B<-autolength, -a>  (default) compute length of side of polygon from smallest distance
+B<-autolength>  (default) compute length of side of polygon from smallest distance
                  between data points.
 
 B<-noautolength>  do not compute length of side automatically
 
 B<-numberpoly>  write numeric value in each hexagon.
 
-B<-polyborder>  draw a black border around each polygon
+B<-polyborder>, B<-nopolyborder> draw a black border around each polygon or not
 
 B<-lattice> draw the underlying triangular lattice. If used with square lattice
                the results will be nonsensical.
@@ -490,9 +502,26 @@ them to take effect. (Or use 'read' and then 'plot'.)
 
 =head2      Density to Color map:
 
-B<-color> (default)  make color density plot
+B<-cmgray>  make grayscale density plot (color map gray)
 
-B<-gray|grey>  make grayscale density plot
+With the following three color maps, the value of the data is represented
+by the named color parameter (hue,saturation, or brightness). In each case
+the remaining two color parameters may be set manually and will change the
+appearance of the plot.
+
+B<-cmhue> (default)  set color map to 'hue' for density plot. This is a 'false color'
+plot.
+
+B<-cmbrightness>  set color map to 'brightness' for density plot. An optional argument
+sets the hue. The hue can also be set with B<-hue>
+
+B<-cmsaturation>  set color map to 'saturation' for density plot. An optional argument
+sets the hue.
+
+The following three parameters set any hsb values that are I<not> set by the color map
+chosen above. That is, B<-hue>, has no effect if B<-cmhue> is chosen, etc.
+
+B<-hue>  I<SATURATION> (default 1) from 0 to 1
 
 B<-saturation>  I<SATURATION> (default 1) from 0 to 1
 
@@ -500,14 +529,16 @@ B<-brightness>  I<BRIGHTNESS> (default 1) from 0 to 1
 
 The raw data is normalized so that it can be mapped to color hues
 in the range 0 to 1. To use only a subset of these colors, the upper
-and lower limits of this normalization can be changed.
+and lower limits of this normalization can be changed. If grayscale plot is chosen via B<-cmgray>,
+then these cmlo and cmhi are interpreted instead as grayscale values. If B<-cmsaturation> is
+chosen, they are interpreted as saturation values, and likewise with B<-cmbrightness>.
 
-B<-colorlo>  I<HUE> (default 0) Lowest value of range of hue in mapping data to hue
+B<-cmlo>  I<HUE> (default 0) Lowest value of range of hue in mapping data to hue
 
-B<-colorhi>  I<HUE>  (default 0.9) Upper limit of range of hue.
-              If these values for range of hue are reversed, the color mapping is reversed
+B<-cmhi>  I<HUE>  (default 1) Upper limit of range of hue.
+For example, if these values for range of color parameter are reversed, the color mapping is reversed.
 
-B<-uselinear> (default) Do not raise the values to a power.
+B<-uselinear> (default) Do not raise the data values to a power prior to plotting.
 
 B<-usepower>   raise data values to a power before mapping to colors
 
@@ -600,6 +631,10 @@ B<-plotwidth> I<PLOTWIDTH>  (default 5) the width of the plotted data area in in
 is too big for the page and eps or pdf are requested, then the plot is automatically rescaled
 to fit on the page.
 
+B<-viewerscale> I<SCALE> If using gv as a viewer, scale (that is, magnify) the viewing area by
+this amount. If you use a different viewer, change the variable $ViewerScaleOpt in the
+configuration file.
+
 Note that if you change the file type in interactive mode with the following three commands, you
 must enter 'viewer' to launch a new viewer for the new output plot.
 
@@ -617,11 +652,11 @@ B<-portrait> (default)
 
 B<-landscape>
 
-=head2  MISCELLANEOUS:
+=head2  Miscellaneous:
 
 B<-grided>, B<-nogrided>(default)     If B<-nogrided> then data file must have lines of triples "x y value".
 If B<-grided> then  the data file must have rows separated by newlines interpreted as follows:
-The number on row j, column i is the value of a data point at position i,j;
+The number in row j, column i is the value of a data point at position i,j;
 that is, the data is assumed to be on a grid of unit squares.
 
 B<-ex> I<n>  write example plot number I<n>. If B<-display> is given, show plot in viewer.
@@ -654,7 +689,7 @@ be enabled. This makes the interactive mode much more friendly.
 
 =head1 AUTHOR
 
-John Lapeyre <lapeyre@physics.arizona.edu>
+John Lapeyre <lapeyre aaat physics doot arizona dat edu>
 
 =head1 BUGS
 
@@ -663,8 +698,6 @@ is missing features and may have bugs.  It has not been tested on a
 wide range of tasks.  Automatic man page generation is broken on some systems.
 
 Cannot rotate hexagons or squares if lattice is rotated.
-
-Only supports one color scheme to represent density.
 
 Hasn't been tested on a variety of systems to improve portability.
 
@@ -757,6 +790,7 @@ sub run_shell {
 		       &Tridens::verbose( "parsing:'". $st1 . "'");
 		     #  warn "WARNING $@" if $@;
 		       @ARGV = Text::ParseWords::shellwords($st1); # preserve quoted strings
+		       $ARGV[0] = '-'. $ARGV[0] unless $ARGV[0] =~ /^\-/;
 		       GetOptions( \%h, @Tridens::Optlist );
 		       if (@ARGV >0) {
 			   print STDERR "Ignoring extra words at end of line '" .
@@ -823,7 +857,7 @@ sub run_shell {
 	$res = eval($input) unless $cflag == 1;
 	warn "error: $@" if $@;
 	print $OUT $res, "\n" if defined $res and not $@;
-	$term->addhistory($input) if $input =~ /\S/;
+#	$term->addhistory($input) if $input =~ /\S/; # this is done automatically apparantly
 	$@ = '';
     }
     print "\n";
@@ -843,16 +877,16 @@ our ($TRUE,$FALSE);
 our ($ParameterList, $PlotWidth, $LandScape, $Xmin,
  $Xmax, $Ymin, $Ymax, $XTickStart, $XTickInt,
  $YTickStart, $YTickInt, $ZeroAbs, $Pow2Eps,
- @MagicIntervals, @Divisions, $ColorMap, $XAxisLabel,
+ @MagicIntervals, @Divisions, $ColorMap, $Hue, $XAxisLabel,
  $YAxisLabel, $RotateYAxisLabel, $Title, $TitleYOffset,
  $LBound, $HBound, $TickInterval, $NumberOfSides,
  $AutoLength, $LengthOfSide, $Rotation, $Rotation2,
  $PSFormat, $BoundingBoxPad, $TTick, $BTick, $LTick, $RTick,
- $PolyBorder, $TriHexDraw, $TriHexGray, $NumberPoly,
+ $PolyBorder, $TriHexDraw, $LatticeGray, $NumberPoly,
  $NumberPolyDig, $NumberPolySciLim, $NumberPolyZero,
  $NumberPolyGray, $NumberPolySciScale, $XAxis, $YAxis,
  $DataNorming, $DataTransformPower, $UseColTrans,
- $ColTransHi, $ColTransLo, $ShowNormalized, $DrawKey,
+ $ColorMapHi, $ColorMapLo, $ShowNormalized, $DrawKey,
  $NumKeyBars, $Xbuf, $Ybuf, $Fontname, $ItalicFontname,
  $BoldFontname, $BoldItalicFontname, $Saturation,
  $Brightness, $KeyYOffset, $KeyXOffset, $KeyWidth,
@@ -865,7 +899,7 @@ our ($ParameterList, $PlotWidth, $LandScape, $Xmin,
  $GridDataFile, $RunShell);
 
 our($Outfile, $ExampleNumber, $DoAllExamples, $FontScale, $Subscale, $Supscale, $SSupscale,
-$Viewer, $PostScriptInterpreterOptions, $FontPath, $Display,
+$Viewer, $ViewerScaleOpt, $ViewerScale, $PostScriptInterpreterOptions, $FontPath, $Display,
 $NoDisplay, $HaveData, $ViewerStarted, $ViewerPid, $Pi, $E, @Optlist,
 $BatchFile, $Browser, $PdfLatex, %RgbCodes, @RgbNames,
 $NumberOfExamplePlots, %Symcodes, @Symcodelist, %Symaliases, @Symaliaslist, $SScriptScale );
@@ -911,7 +945,8 @@ $LandScape = $FALSE;
 # Use color or grayscale to denote data value.
 # color 1, grayscale 0
 $ColorMap = 'hue';  
-#$ColorMap = 'gray';
+#$ColorMap = 'cmgray';
+#$ColorMap = 'saturation';
 
 # These are the title and labels strings. Escape codes can be used as described in
 # the manual.
@@ -997,7 +1032,7 @@ $PolyBorder = $FALSE;
 # 1 = draw only on hexes corresponding to data points
 # 2 = draw triangular lattice over entire plot
 $TriHexDraw = 0;
-$TriHexGray = 0; # darkness of line (0=black, 1=white);
+$LatticeGray = 0; # darkness of line (0=black, 1=white);
 
 # whether to write the numeric data value inside the polygon
 $NumberPoly=$FALSE;
@@ -1021,7 +1056,7 @@ $YAxis = $FALSE;
 # Notice that there is one more transform that maps the normed data in
 # [0,1] onto a subinterval of [0,1]. This can be used to choose just
 # subset of gray or color values, or to invert their meanings. These
-# transform is set with $UseColTrans and $ColTransHi and $ColTransLo
+# transform is set with $UseColTrans and $ColorMapHi and $ColorMapLo
 $DataNorming = 'linear';
 #$DataNorming = 'power';
 
@@ -1041,11 +1076,11 @@ $UseColTrans = $TRUE;
 # maps normalized data values in [0,1]  into an subinterval
 # of the color space (which is also  [0,1]. )
 # This allows inversion or cutting out some
-# colors. ColTransHi=1, ColTransLo=0 is the identity transform.
+# colors. ColorMapHi=1, ColorMapLo=0 is the identity transform.
 # reversing these inverts the color or grayscale.
 # These numbers are the endpoints of the subinterval.
-$ColTransHi =  0;
-$ColTransLo =  .9;
+$ColorMapHi =  1;
+$ColorMapLo =  .2;
 
 # whether to show the normalized data, or raw data on key
 # and in hexes. If set to zero, raw data values will be printed in
@@ -1096,9 +1131,12 @@ $SSupscale = .55;
 # (except there are a host of other imprecisions that move it a bit)
 $SScriptScale = .95;
 
-# parameters applied to all colors. Colors are chosen with hue,saturation,
-# brightness model. Hue encodes data value; the other two parameters
-# are could be changed, but are probably best left at 1.
+# parameters for color map. Colors are chosen with hue,saturation,
+# brightness model.
+# If $ColorMap is set to 'hue' via option cmhue, then only Saturation and
+# Brightness have an effect on the plot, because the hue is determined by
+# the value of the data point.
+$Hue = .1;
 $Saturation = 1;
 $Brightness = 1;
 
@@ -1164,6 +1202,9 @@ $PostScriptInterpreterOptions = ' -dSAFER ';
 # If this is broken, fall back on ' -watch'.
 #$Viewer = 'gv -watch';
 $Viewer = 'gv ';
+$ViewerScaleOpt = ' -scale=%n ';
+
+$ViewerScale = 1.0;
 
 # Command to launch your web browser
 $Browser = 'firefox';
@@ -1263,42 +1304,64 @@ EOSHH
     @Optlist = (
          'h', 'version', 'v', 'man', 'mandoc', 'htmldoc','html','pdfdoc',
               'textdoc', 'paramfile', 
-	  'color', 'gray','grey', 'title:s', 'offsettitle:s', 'numberpoly',
-	   'square', 's', 'tri' , 'hex', 'ps', 'eps', 'pdf' , 'sidelength:s',
-	   'autolength', 'a', 'noautolength',
+	  'cmhue', 'cmgray','grey', 'cmsaturation:f', 'cmbrightness:f', 'cmsatbright:f',
+           'title:s', 'offsettitle:s', 'numberpoly',
+	   'square',  'tri' , 'circle', 'hex', 'ps', 'eps', 'pdf' , 'sidelength:s',
+	   'autolength', 'noautolength',
 	   'portrait', 'landscape', 'plotwidth:f', 'xlabel:s', 'ylabel:s',
           'rotylabel',    'norotylabel',
-           'polyborder', 'xaxis','yaxis', 'noxaxis', 'noyaxis','noaxis','axis',
+           'polyborder', 'nopolyborder', 'xaxis','yaxis', 'noxaxis', 'noyaxis','noaxis','axis',
    	 'usepower', 'uselinear' , 'power:f',  'lattice', 'latticegray:f',
-         'colorlo:f', 'colorhi:f', 'shownorm', 'showraw', 'numbars:i', 'key', 'nokey',
-           'xbuf:f', 'ybuf:f', 'saturation:f', 'brightness:f',
+         'cmlo:f', 'cmhi:f', 'shownorm', 'showraw', 'numbars:i', 'key', 'nokey',
+           'xbuf:f', 'ybuf:f', 'saturation:f', 'brightness:f', 'hue:f',
 	   'xmin:s', 'xmax:s', 'ymin:s', 'ymax:s', 'grided','nogrided',
 	    'ex:i', 'exall:i', 'outfile:s', 'fontscale:f', 'display', 'nodisplay', 'i', 'batch:s',
-	  'listcolors:i', 'findcolors=s', 'listsymbols:i', 'bbpad:i', 'subscale:f', 'supscale:f', 'ssupscale:f',
+	  'listcolors:i', 'findcolors=s', 'listsymbols:i', 
+           'bbpad:i', 'subscale:f', 'supscale:f', 'ssupscale:f',
 	'explim:i','keydigits:i', 'viewerpid:i',
 	'ticklabeloffset:f','polylinew:f','framelinew:f','ticklinew:f', 'axislinew:f',
 	'ticklength:f','tickfontscale:f','keyfontscale:f','axisfontscale:f','exponentfontscale:f',
-	'numberpolyfontscale:f'
+	'numberpolyfontscale:f', 'viewerscale:f'
 	);
 
     my @optlist2 = (
 	'generatetest', 'test'
 	);
 
-
-
 # Handlers:
 # OPTVAL means set from the argument given by user
 # VAL means no argument, just set a value given in the handler
+# VALTYPE eq 'string' forces quotes around the arg before eval'ing
     our %OptHandlers = (
-	color => {VAR => 'ColorMap', VAL => '"hue"', VALTYPE => 'scalar'},
-	gray => {VAR => 'ColorMap', VAL => '"gray"', VALTYPE => 'scalar'},
+	cmhue => {VAR => 'ColorMap', VAL => '"hue"', VALTYPE => 'scalar'},
+	cmgray => {VAR => 'ColorMap', VAL => '"gray"', VALTYPE => 'scalar'},
+	cmsaturation => [ {VAR => 'ColorMap', VAL => '"saturation"', VALTYPE => 'scalar'},
+		       {VAR => 'Hue', OPTVAL => 1, OPTDEFAULT => '$Hue'  }], # trick to leave Hue unchanged
+	cmbrightness => [ {VAR => 'ColorMap', VAL => '"brightness"', VALTYPE => 'scalar'},
+		       {VAR => 'Hue', OPTVAL => 1, OPTDEFAULT => '$Hue'  }],
+	cmsatbright => [ {VAR => 'ColorMap', VAL => '"satbright"', VALTYPE => 'scalar'},
+		       {VAR => 'Hue', OPTVAL => 1, OPTDEFAULT => '$Hue'  }],
 	numberpoly => {VAR => 'NumberPoly', VAL => 1, VALTYPE => 'bool'},
 	autolength => {VAR => 'AutoLength', VAL => 1, VALTYPE => 'bool'},
 	noautolength => {VAR => 'AutoLength', VAL => 0, VALTYPE => 'bool'},
 	landscape =>{VAR => 'LandScape', VAL => 1, VALTYPE => 'bool'},
 	portrait =>{VAR => 'LandScape', VAL => 0, VALTYPE => 'bool'},
 	polyborder =>{VAR => 'PolyBorder', VAL => 1, VALTYPE => 'bool'},
+	nopolyborder =>{VAR => 'PolyBorder', VAL => 0, VALTYPE => 'bool'},
+	axis => [ {VAR => 'XAxis', VAL => 1, VALTYPE => 'bool'},
+		  {VAR => 'YAxis', VAL => 1, VALTYPE => 'bool'}],
+	noaxis => [ {VAR => 'XAxis', VAL => 0, VALTYPE => 'bool'},
+		  {VAR => 'YAxis', VAL => 0, VALTYPE => 'bool'}],
+	square => [ { VAR => 'NumberOfSides', VAL => 4},
+		    { VAR => 'LengthOfSide', VAL => 1},
+		    { VAR => 'Rotation', VAL => '0' }],
+	tri => [ { VAR => 'NumberOfSides', VAL => 6},
+		    { VAR => 'LengthOfSide', VAL => '1/sqrt(3)'},
+		    { VAR => 'Rotation', VAL => '30' }],
+	circle => [ { VAR => 'NumberOfSides', VAL => 0},
+		    { VAR => 'LengthOfSide', VAL => '1/2'},
+		    { VAR => 'Rotation', VAL => '0' }],
+	viewerscale =>{VAR => 'ViewerScale', OPTVAL => 1, VALTYPE => 'scalar'},
 	xaxis =>{VAR => 'XAxis', VAL => 1, VALTYPE => 'bool'},
 	noxaxis =>{VAR => 'XAxis', VAL => 0, VALTYPE => 'bool'},
 	yaxis =>{VAR => 'YAxis', VAL => 1, VALTYPE => 'bool'},
@@ -1322,15 +1385,16 @@ EOSHH
 	offsettitle =>{VAR => 'TitleYOffset', OPTVAL => 1},
 	xlabel =>{VAR => 'XAxisLabel', OPTVAL => 1, VALTYPE=>'string'},
 	ylabel =>{VAR => 'YAxisLabel', OPTVAL => 1, VALTYPE=>'string'},
-	sidelength =>{VAR => 'LengthOfSide', OPTVAL => 1},
+	sidelength =>{VAR => 'LengthOfSide', OPTVAL => 1}, # this may be overwritten by square and tri. fix it
 	saturation =>{VAR => 'Saturation', OPTVAL => 1},
 	brightness =>{VAR => 'Brightness', OPTVAL => 1},
+	hue =>{VAR => 'Hue', OPTVAL => 1},
 	xbuf =>{VAR => 'Xbuf', OPTVAL => 1, UNIT => 'times plot width'},
 	ybuf =>{VAR => 'Ybuf', OPTVAL => 1, UNIT => 'times plot height'},
 	numbars =>{VAR => 'NumKeyBars', OPTVAL => 1},
-	colorhi =>{VAR => 'ColTransHi', OPTVAL => 1},
-	colorlo =>{VAR => 'ColTransLo', OPTVAL => 1},
-	latticegray =>{VAR => 'TriHexGray', OPTVAL => 1},
+	cmhi =>{VAR => 'ColorMapHi', OPTVAL => 1},
+	cmlo =>{VAR => 'ColorMapLo', OPTVAL => 1},
+	latticegray =>{VAR => 'LatticeGray', OPTVAL => 1},
 	power =>{VAR => 'DataTransformPower', OPTVAL => 1},
 	outfile =>{VAR => 'Outfile', OPTVAL => 1, VALTYPE=>'string'},
 	fontscale =>{VAR => 'FontScale', OPTVAL => 1},
@@ -1353,6 +1417,9 @@ EOSHH
 	axisfontscale =>{VAR => 'AxisFontScale', OPTVAL => 1},
 	numberpolyfontscale =>{VAR => 'NumberPolyFontScale', OPTVAL => 1},
 	exponentfontscale =>{VAR => 'ExponentScale', OPTVAL => 1},
+	grided => [ {VAR => 'GridDataFile', VAL => 1, VALTYPE => 'bool'},
+		    {VAR => 'AutoLength', VAL => 0, VALTYPE => 'bool'} ],
+	nogrided =>  {VAR => 'GridDataFile', VAL => 0, VALTYPE => 'bool'},
 	viewerpid =>{VAR => 'ViewerPid', OPTVAL => 1}
 	
 );
@@ -1363,13 +1430,17 @@ sub print_all_parameters {
     my @okeys = keys %OptHandlers;
     my %invopt;
     foreach my $okey (@okeys) { # make inverted hash of OptHandlers vars
-	my $var = $OptHandlers{$okey}->{VAR};
-	$invopt{$var} = {}  unless exists $invopt{$var};
-	foreach my $vkey (keys %{$OptHandlers{$okey}}) {  # copy the hash
-	    $invopt{$var}->{$vkey} = $OptHandlers{$okey}->{$vkey};
+	my $hand = $OptHandlers{$okey}; # h is the handler for option $key
+	$hand = [$hand] unless ref($hand) eq 'ARRAY'; # put single handler in an array
+	foreach my $h (@$hand) {
+	    my $var = $h->{VAR};
+	    $invopt{$var} = {}  unless exists $invopt{$var};
+	    foreach my $vkey (keys %{$h}) {  # copy the hash
+		$invopt{$var}->{$vkey} = $h->{$vkey};
+	    }
+	    $invopt{$var}->{OPTS} = [] unless exists $invopt{$var}->{OPTS}; # put all options setting this var in hash
+	    push @{$invopt{$var}->{OPTS}}, $okey;
 	}
-	$invopt{$var}->{OPTS} = [] unless exists $invopt{$var}->{OPTS};
-	push @{$invopt{$var}->{OPTS}}, $okey;
     }
     foreach my $key (sort keys %invopt) {
 	my $h = $invopt{$key};
@@ -1411,46 +1482,55 @@ sub print_all_parameters {
     first_process_command_line_options(%h);
 
 
+# process command line options via handlers. the next routine , process_
+# does the remaining options by hand.
 # %opth is hash of options and values given by user
 # find the handler her for each one.
 sub first_process_command_line_options {
     my (%opth) = @_;
     foreach my $key (keys %opth) {
 	next unless exists $OptHandlers{$key};
-	my $h = $OptHandlers{$key};
-	if (exists $h->{VAR}) {
-	    my $var = $h->{VAR};
-	    if ($SettingOpts == $TRUE) {
-		if (exists $h->{VAL}) { # set variable
-		    my $setst = '$'.$var . " = " . $h->{VAL};
-		    eval $setst;
-		}
-		elsif (exists $h->{OPTVAL}) { # set variable
-		    my $oval = $opth{$key};
-		    $oval = "'$oval'" if defined $h->{VALTYPE} and $h->{VALTYPE} eq 'string';
-		    if (exists $h->{DOUNDEF}) { # no arg undefines value
-			$oval = 'undef' if $oval =~ /^\s*$/;
+	my $hand = $OptHandlers{$key}; # h is the handler for option $key
+	$hand = [$hand] unless ref($hand) eq 'ARRAY'; # put single handler in an array
+	foreach my $h (@$hand) {
+	    if (exists $h->{VAR}) {
+		my $var = $h->{VAR};
+		if ($SettingOpts == $TRUE) {
+		    if (exists $h->{VAL}) { # set variable
+			my $setst = '$'.$var . " = " . $h->{VAL};
+			eval $setst;
 		    }
-		    my $setst = '$'.$var . " = " . $oval;
-		    eval $setst;
-		}
-		if (exists $h->{SETSUB}) {
-		    &{$h->{SETSUB}};
-		}
-	    }
-	    else { # getting: so return value
-		if (exists $h->{VAL} or exists $h->{OPTVAL}) { # get var
-		    if (exists $h->{VALTYPE} and $h->{VALTYPE} eq 'bool' ) {
-			my $s = 'TRUE'; $s = 'FALSE' if eval( '$'.$var) == 0;
-			print $var . " = $s\n";
+		    elsif (exists $h->{OPTVAL}) { # set variable
+			my $oval = $opth{$key};
+			$oval = "'$oval'" if defined $h->{VALTYPE} and $h->{VALTYPE} eq 'string';
+			if (exists $h->{DOUNDEF}) { # no arg undefines value
+			    $oval = 'undef' if $oval =~ /^\s*$/;
+			}
+			deb ($opth{$key});
+			if ( exists $h->{OPTDEFAULT} and $opth{$key} eq '') {
+			    $oval = $h->{OPTDEFAULT};
+			}
+			my $setst = '$'.$var . " = " . $oval;
+			eval $setst;
 		    }
-		    else {
-			my $s = eval( '$'.$var);
-			$s = 'undefined' unless defined $s;
-			$s = "'$s'" if exists $h->{VALTYPE} and $h->{VALTYPE} eq 'string';
-			print $var . " = $s";
-			print " " . $h->{UNIT} if exists $h->{UNIT};
-			print "\n";
+		    if (exists $h->{SETSUB}) {
+			&{$h->{SETSUB}};
+		    }
+		}
+		else { # getting: so return value
+		    if (exists $h->{VAL} or exists $h->{OPTVAL}) { # get var
+			if (exists $h->{VALTYPE} and $h->{VALTYPE} eq 'bool' ) {
+			    my $s = 'TRUE'; $s = 'FALSE' if eval( '$'.$var) == 0;
+			    print $var . " = $s\n";
+			}
+			else {
+			    my $s = eval( '$'.$var);
+			    $s = 'undefined' unless defined $s;
+			    $s = "'$s'" if exists $h->{VALTYPE} and $h->{VALTYPE} eq 'string';
+			    print $var . " = $s";
+			    print " " . $h->{UNIT} if exists $h->{UNIT};
+			    print "\n";
+			}
 		    }
 		}
 	    }
@@ -1459,7 +1539,7 @@ sub first_process_command_line_options {
 }
 
 sub print_codes_columns  {
-    my ($codes,$n) = @_;
+	my ($codes,$n) = @_;
     for(my $i=0;$i<@$codes;$i++) {
 	print $codes->[$i];
 	if ($i % $n == $n-1) {print "\n" unless $i==@$codes-1 ;}
@@ -1614,38 +1694,13 @@ sub process_command_line_options {
 	print $st;
 	iexit(0);
     }
-    if ( exists $h{square} or exists $h{s}  ) {
-	$NumberOfSides = 4;
-	$LengthOfSide = 1 unless exists $h{sidelength};
-	$Rotation = '0';
-    }
-    if ( exists $h{tri} ) {
-	$NumberOfSides = 6;
-	$LengthOfSide =   1/sqrt(3) unless exists $h{sidelength};
-	$Rotation = '30';
-    }
-    if ( exists $h{hex} ) {
+    if ( exists $h{hex} ) { # this is broken
 	$NumberOfSides = 3;
 #	$LengthOfSide =   1/(sqrt(3)) unless exists $h{sidelength};
 #	$LengthOfSide =   sqrt(3)/2 unless exists $h{sidelength};
 	$LengthOfSide =   1.7 unless exists $h{sidelength};
 	$Rotation = '30';
 	$Rotation2 = '210';
-    }
-    if ( exists $h{noaxis} ) {
-	$XAxis = 0;
-	$YAxis = 0;
-    }
-    if ( exists $h{axis} ) {
-	$XAxis = 1;
-	$YAxis = 1;
-    }
-    if ( exists $h{grided} ) {
-	$GridDataFile = 1;
-	$AutoLength = 0;
-    }
-    if ( exists $h{nogrided} ) {
-	$GridDataFile = 1;
     }
     if ( exists $h{ex} ) {
 	$ExampleNumber = $h{ex};
@@ -1798,6 +1853,15 @@ sub set_polygon_params {
     elsif ( $ColorMap eq 'gray' ) {
 	$SetDensityColor = "setgray";
     }
+    elsif ( $ColorMap eq 'saturation' ) {
+	$SetDensityColor = " $Hue exch $Brightness sethsbcolor ";
+    }
+    elsif ( $ColorMap eq 'brightness' ) {
+	$SetDensityColor = " $Hue exch $Saturation exch sethsbcolor ";
+    }
+    elsif ( $ColorMap eq 'satbright' ) {
+	$SetDensityColor = " $Hue exch dup sethsbcolor ";
+    }
     if ( $NumberOfSides == 6 ) {
 	$Polypath = 'hexpoly';
     }
@@ -1806,6 +1870,10 @@ sub set_polygon_params {
     }
     elsif ( $NumberOfSides == 4 ) {
 	$Polypath = 'squarepoly';
+
+    }
+    elsif ( $NumberOfSides == 0 ) {
+	$Polypath = 'circlepoly';
     }
     else {
 	die "Only polygons with 3,4, or 6 sides are supported.";
@@ -1965,6 +2033,9 @@ sub read_data {
 	elsif ( $NumberOfSides == 6 ) {
 	    $LengthOfSide = sqrt($min_dist) * 1/sqrt(3);
 	}
+	elsif ( $NumberOfSides == 0 ) {
+	    $LengthOfSide = sqrt($min_dist)/2;
+	}
 	elsif ( $NumberOfSides == 3 ) {
 	    $LengthOfSide = sqrt($min_dist) * 1/sqrt(3);
 	}
@@ -2061,12 +2132,12 @@ sub all_scale_transform {
 
 sub scale_transform {
     my $x = shift;
-    return $x * ($ColTransHi - $ColTransLo) + $ColTransLo;
+    return $x * ($ColorMapHi - $ColorMapLo) + $ColorMapLo;
 }
 
 sub inv_scale_transform {
     my $x = shift;
-    return ($x-$ColTransLo) / ($ColTransHi - $ColTransLo);
+    return ($x-$ColorMapLo) / ($ColorMapHi - $ColorMapLo);
 }
 
 # apparantly not used
@@ -2086,7 +2157,7 @@ sub norm_log {
     }
 }
 
-
+# write the postscript commands to draw the polygons covering the plot
 sub make_data_postscript {
    my $i;
    my $str = '';
@@ -2122,7 +2193,7 @@ sub make_data_postscript {
 #{  # begin context
 
 our %example_data =  (
-    'sq1.dat' => { RANGE => [-3,3,.1,-3,3,.1],
+    'sq1.dat' => { RANGE => [-2,2,.1,-2,2,.1],
 		   DATFUNC => \&make_print_square_data, FUNC => \&ex_f1},
      'tr1.dat' => {RANGE => [-10,10,-10,10,.1],
 		   DATFUNC => \&make_print_triangular_data, FUNC => \&ex_f1},
@@ -2137,7 +2208,12 @@ sub setup_example_plots {
        { FILE => 'sq1.dat', ARGS => '' },
        { FILE => 'sq1.dat', ARGS => " -title 'A\\_ 0\\- sin(3xy)e\\^ -(x\\^2 2\\^ +y\\^2 2\\^ xx)' -xlabel 'x' -ylabel 'y' " },
        { FILE => 'tr1.dat', ARGS => '-tri -title \'Plot on \bf triangular \rm lattice\' ' },
-       { FILE => 'tr1.dat', ARGS => '-tri -gray -title \'Grayscale. \xi  greek \arrowboth  symbols \''},
+       { FILE => 'tr1.dat', ARGS => '-cir -title \'Plot on \bf triangular \rm lattice with circles\' ' },
+       { FILE => 'tr1.dat', ARGS => '-tri -cmgray -title \'Grayscale. \xi  greek \arrowboth  symbols \''},
+       { FILE => 'tr1.dat', ARGS => '-tri -cmbright .1  -title \'cmbright .1 \''},
+       { FILE => 'tr1.dat', ARGS => '-tri -cmsatur .1 -title \'cmsaturation .1 \''},
+       { FILE => 'tr1.dat', ARGS => '-tri -cmbright .4  -title \'cmbright .4 \''},
+       { FILE => 'tr1.dat', ARGS => '-tri -cmsatur .4 -title \'cmsaturation .4  \''},
        { FILE => 'sq1.dat', ARGS => '-nokey -ylab \'Long unrotated \it y\rm  label\' -title \'No key, \^ super\^2 supersuper\_ sub\- normal \''},
        { FILE => 'sq1.dat', ARGS => '-nokey -rotylab -ylab \'Long rotated \it y\rm  label\' -title \'No key, \^ super\^2 supersuper\_ sub\- normal \''},
        { FILE => 'tr1.dat', ARGS => '-tri -title \'\red \^2 \sym test\_ \green \rm test\- \bi \blue Test\''},
@@ -2412,7 +2488,7 @@ EOBATCH1
 
 # old    { IN => { COM => "$td" }, OUT => { MATCH => "No input file specified; try option" }},
     my @tests = (
-    { IN => { COM => "$td -version" }, OUT => { MATCH => "tridens 0.014" }},
+    { IN => { COM => "$td -version" }, OUT => { MATCH => "tridens 0.015" }},
     { IN => { COM => "$td -h" }, OUT => { FILE => 'test_help_out' }},
     { IN => { COM => "$td -batch batch1"}, OUT => { 
 	BATCH => $batchfile1, 
@@ -2814,7 +2890,7 @@ integral integraltp integralex integralbt parenrighttp parenrightex parenrightbt
 
 # aliases from some latex symbol names to adobe symbol font names
 @Symaliaslist = qw (otimes oplus leftarrow rightarrow leftrightarrow
-    langle rangle );
+    langle rangle cup cap pm mp ge le );
 
 %Symaliases = (
     otimes => 'circlemultiply',
@@ -2824,6 +2900,12 @@ integral integraltp integralex integralbt parenrighttp parenrightex parenrightbt
     leftrightarrow => 'arrowboth',
     langle => 'angleleft',
     rangle => 'angleright',
+    cup => 'union',
+    cap => 'intersection',
+    pm => 'plusminus',
+    mp => 'minusplus',
+    ge => 'greaterequal',
+    le => 'lessequal'
     );
 }
 
@@ -3628,9 +3710,43 @@ my @cols = split("\n",$colors);
 ####################
 1;
 
+# use this at some point to set $Hue,$Saturation, $Brightness from
+# Xll color names. but hsv and hsb are not the sme thing. might be a problem.
+sub rgbToHsv {
 
+    # The procedure below converts an RGB value to HSB.  It takes red, green,
+    # and blue components (0-65535) as arguments, and returns a list
+    # containing HSB components (floating-point, 0-1) as result.  The code
+    # here is a copy of the code on page 615 of "Fundamentals of Interactive
+    # Computer Graphics" by Foley and Van Dam.
 
+    my $size = 255;
+    my($red, $green, $blue) = @_;
+    my($max, $min, $sat, $range, $hue, $rc, $gc, $bc);
 
+    $max = ($red > $green) ? (($blue > $red) ? $blue : $red) :
+      (($blue > $green) ? $blue : $green);
+    $min = ($red < $green) ? (($blue < $red) ? $blue : $red) :
+      (($blue < $green) ? $blue : $green);
+    $range = $max - $min;
+    if ($max == 0) {
+        $sat = 0;
+    } else {
+        $sat = $range / $max;
+    }
+    if ($sat == 0) {
+        $hue = 0;
+    } else {
+        $rc = ($max - $red) / $range;
+        $gc = ($max - $green) / $range;
+        $bc = ($max - $blue) / $range;
+        $hue = ($max == $red)?(0.166667*($bc - $gc)):
+          (($max == $green)?(0.166667*(2 + $rc - $bc)):
+           (0.166667*(4 + $gc - $rc)));
+    }
+    return ($hue, $sat, $max/$size);
+
+} # end rgbToHsv
 
 
 sub make_font_declarations {
@@ -3713,6 +3829,14 @@ sub print_centeredx {
        "$x totalstringwidth -2 div add $y moveto\n",$text);
 }
 
+# not currently used
+# use paper coordinates (inches)
+sub print_centeredx_new {
+    my($y,$x,$text) = @_;
+    print_mult_font_text($y,$x,
+       "$x totalstringwidth -2 div add $y moveto\n",$text);
+}
+
 # print such that text is all to the left of current point
 sub print_to_left {
     my($y,$x,$text) = @_;
@@ -3736,7 +3860,7 @@ sub print_to_left_rot {
 sub get_character_height {
     my ($char,$psvar) = @_;
     $SScriptScale = .95 unless defined $SScriptScale;
-    my %charmap = ( h => 'x');
+    my %charmap = ( h => 'n');
     $char = $charmap{$char} if exists $charmap{$char};
     return "gsave 0 0 moveto ($char) false charpath flattenpath pathbbox\n".
   "dup /$psvar exch $SScriptScale mul def exch pop exch sub /charheight exch def pop grestore\n";
@@ -4370,7 +4494,7 @@ $font_declarations_com
 
    closepath
    currentlinewidth .3 mul setlinewidth
-   $TriHexGray setgray stroke
+   $LatticeGray setgray stroke
    grestore
 } bind def
 
@@ -4399,7 +4523,7 @@ $font_declarations_com
    } repeat
    closepath
    currentlinewidth .3 mul setlinewidth
-   $TriHexGray setgray stroke
+   $LatticeGray setgray stroke
    grestore
 } def
 
@@ -4410,11 +4534,16 @@ $font_declarations_com
     -1 0 rlineto
 } bind def
 
-/squarepoly {
+/squarepoly { % stack empty i guess
     .5 .5 rmoveto
     0 -1  rlineto
     -1 0 rlineto
     0  1 rlineto
+} bind def 
+
+
+/circlepoly {  % stack empty
+  currentpoint 1 0 360 arc
 } bind def 
 
 
@@ -5102,12 +5231,22 @@ quickly.
 
 =cut
 
+sub make_viewer_opts {
+    if ($ViewerScale == 1) {
+	return '';
+    }
+    my $opts = $ViewerScaleOpt;
+    $opts =~ s/\%n/$ViewerScale/;
+    return $opts;
+}
+
 sub launch_viewer {
     my ($args) = @_;
     my $pid = fork();
     die "unable to fork: $!" unless defined($pid);
+    my $opts = make_viewer_opts();
     if (!$pid) {  # child
-	exec("$Viewer $args");
+	exec("$Viewer $opts $args");
 	die "unable to exec: $!";
     }
     $ViewerPid = $pid;

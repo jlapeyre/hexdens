@@ -1007,7 +1007,7 @@ Rotate the plot by 90 degrees.
 B<-readline> B<-noreadline>
 If set, (some of) command history, commandline editing and command completion are 
 enabled. This only works in interactive mode and depends on having one of
-the  perl readline libraries installed (the perl gnu readline library is probably best).
+the  perl readline libraries installed (only the perl gnu readline library provides completion).
 
 B<-autodata> B<-noautodata>
 (default is set) Attempt to detect the data file format. A line with three columns of
@@ -1185,8 +1185,8 @@ sub Shell::tri_readline {
     my $self = $term;
     my ($prompt, $preput) = @_;
 
-    my $module = $term->ReadLine();
-    return $term->readline(@_) unless $module eq 'Term::ReadLine::Gnu' ;
+    my $module_name = $term->ReadLine();
+    return $term->readline(@_) unless $module_name eq 'Term::ReadLine::Gnu' ;
 
     # ornament support (now prompt only)
     $prompt = ${$Attribs->{term_set}}[0] . $prompt . ${$Attribs->{term_set}}[1];
@@ -1254,10 +1254,10 @@ sub Shell::set_options {
         $st =~ s/\"/\\\"/g;    # escape the double quotes
         no warnings 'all';     # we handle user error
         if ( $InterpolateCmd == TRUE ) {
-            &Tridens::verbose( "evaluating input:" . "\$st1 = \"$st\"" )
+            &Tridens::verbose( "Evaluating input:" . "\$st1 = \"$st\"" )
               ;                # do interpolations
             $res = eval "\$st1 = \"$st\"";    # do interpolations
-            &Tridens::verbose( "evaluated input:'" . $res . "', $st1" );
+            &Tridens::verbose( "Evaluated input:'" . $res . "', $st1" );
         }
         else {
             $st1 = $st;
@@ -1441,6 +1441,14 @@ sub Shell::command_completion_function {
 
 sub Shell::start_readline {
     $term = Term::ReadLine->new('tridens');
+    my $module_name = $term->ReadLine();
+    &Tridens::verbose( "Using readline module: $module_name.");
+    if ($module_name eq 'Term::ReadLine::Gnu') {
+        &Tridens::verbose( "Command line completion enabled.");
+    }
+    else {
+        &Tridens::verbose( "No support for command line completion.");
+    }
     $term->MinLine(3); # min linelength for history. my hack makes this useless
     eval '$term->read_history( ".history.tridens", 0, 5000 )';
     $@ = '' if $@;
@@ -1494,12 +1502,15 @@ sub Shell::run_shell {
                     return undef;
                 }
             }
-            print "Try 'man', 'html' or 'textdoc' for help, or 'h' for long list of options.\n"
-		. "Type 'help' and TAB twice to get a list of help topics.\n"
-              . "Try 'example n' to run example number n.\n";
+            print "Try 'man' or 'html' for help or 'h' for short help.\n";
+            print "Type 'help' and TAB twice to get a list of help topics.\n"
+                if $term->ReadLine() eq 'Term::ReadLine::Gnu1';
+            print  "Try 'example n' to run example number n.\n";
+            print  "Restart with '-v' option to troubleshoot.\n";
             undef;
     };
 
+    $ComActs{"?"} = $ComActs{help};
 
     # make commands out of these things that are also called via 'set'
     foreach my $com (qw( listcolors findcolors listsymbols listfonts )) {
@@ -1551,6 +1562,7 @@ sub Shell::run_shell {
             $Tridens::BatchFile = undef unless @batch_lines > 0;
         }
         elsif ( defined $term ) {
+# We use our own hacked version of readline routine
 #            $input = $term->readline($prompt);
             $input = Shell::tri_readline($term,$prompt);
         }
@@ -1562,12 +1574,15 @@ sub Shell::run_shell {
         $input = &Tridens::strip_spaces($input);
         my $tinp = $input;
         my $res;
-        if ( $tinp =~ s/^\s*(\!)|((\w+)(\s+|$))// ) {
+        if ( $tinp =~ s/^\s*([\!\?])|((\w+)(\s+|$))// ) {
             # check for a command in first word
             # the '!' does not need a space, other commands do.
             my $incom;
-            if   ( defined $1 and $1 eq '!' ) { $incom = $1 }
-            else                              { $incom = $3 }
+            if ( defined $1 ) {
+                if ( $1 eq '!' ) { $incom = $1 }
+                else { $incom = '\?' } # escape for regex
+            }
+            else { $incom = $3; }
             foreach my $com (@coms) {
                 if ( $com =~ /^$incom/ ) {    # only need type first part of com
                     $res   = &{ $ComActs{$com} }($tinp);
@@ -1576,24 +1591,23 @@ sub Shell::run_shell {
                 }
             }
             if ( $cflag == FALSE ) {
-                #print "Unknown command '$incom'\n";
-                #next;
             }
         }
         if ( $exit == TRUE ) { return; }
         $res = eval($input) unless $cflag == TRUE;
-        warn "error: $@" if $@;
+        warn "tridens error: $@" if $@;
         print $res, "\n" if defined $res and not $@;
         $@ = '';
 	if ( $Tridens::UseReadline == TRUE  and defined $term) {
-	    my ($ilast, $last_input);
-	    $ilast = $term->Attribs->{history_length};
+	    my $ilast = $term->Attribs->{history_length};
+            my $last_input = '';
 	    eval '$last_input = $term->history_get($ilast)';
 	    if ( $@ ) {
 		$@ = '';
 	    }
 	    else {
-		$term->add_history($input) unless ($input eq $last_input) or length($input) < 3;
+		$term->add_history($input) unless (defined $last_input && $input eq $last_input)
+                    or length($input) < 3;
 	    }
 	}
 
@@ -2155,6 +2169,7 @@ our $Verbose;
 our $Initfilename = '.tridens';
 our $Infile;    # data file name
 our $ScriptName = $0;
+our $TeXDoc = './tridens.tex'; # should get this from $ScriptName
 
 =for comment
   This prints some messages if the user has selected verbose mode.
@@ -2663,7 +2678,6 @@ EOSHH
 	    $hand = $hand->[0] if ref($hand) eq 'ARRAY';
  	    if ( exists $hand->{VALTYPE} and $hand->{VALTYPE} eq 'string' and exists
                  $hand->{CHK} ) {
-#		deb( "Setting up '$okey'");
 		$CommandCompletions{$okey} = $hand->{CHK}->[0];
 	    }
 	}
@@ -3128,7 +3142,7 @@ EOSHH
 
     sub process_command_line_options {
         my ( $h, $setflags ) = @_;
-        verbose "processing command line options";
+        verbose "Processing command line options.";
         if ( exists $h->{h} ) {
             show_short_help();
         }
@@ -3183,8 +3197,8 @@ EOSHH
         if ( exists $h->{pdfdoc} ) {
             my $res = `pod2latex --help 2>&1 `;
             if ( defined $res and $res =~ /Usage/ ) {
-                verbosesys "pod2latex -out ./tridens.tex  -full  $ScriptName ";
-                verbosesys "$PdfLatex  ./tridens.tex";
+                verbosesys "pod2latex -full  $ScriptName ";
+                verbosesys "$PdfLatex $ScriptName.tex ";
                 iexit(0);
             }
             else {
@@ -7797,10 +7811,6 @@ sub do_all_examples {
 }
 
 sub check_viewer {
-
-    #    print  "CHECKING VIEWWER!!\n";
-    #    print "pid $ViewerPid\n";
-    #    print "viewerstarted $ViewerStarted\n";
     return if $Viewer eq 'xpdf';    # this should be checked in a func.
     if ( defined $Display and $Display == TRUE ) {
         if (

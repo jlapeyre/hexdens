@@ -28,6 +28,7 @@ GNU General Public License for more details.
    A block that serves only to implement scoping of variables to be shared
    by some routines is enclosed with bars like this '#*=*=*=* ...' .
 
+   See BUGS section below for things that need to be fixed.
 
 This file is organized (!) as follows from top to bottom: 
 
@@ -57,17 +58,17 @@ usage: tridens [options] [F<infilename1>, F<infilename2> ...]
 
 tridens reads data from the input files specified on command
 line and, for each one, writes color or grayscale density
-plots.  The input data is on a triangular lattice (or,
-optionally, a square lattice.) For the triangular(square)
-lattice, each coordinate pair in the input file is covered
-with a hexagon(square).  The output file format is
-PostScript or PDF. tridens also operates in an interactive mode.
+plots.  The input data is assumed to be on a rectangular or
+triangular lattice. For the triangular(square) lattice, each
+coordinate pair in the input file is covered with a
+hexagon(square). Other data formats and plotting styles are
+available as well. The output file format is PostScript or
+PDF. tridens also operates in an interactive mode.
 
 =head2 Quick start
 
 C<tridens data.dat> -- write a density plot data.dat.pdf of a regular square
-(or rectangular) array of data points from a file with lines of the form
-'x y val'.
+(or rectangular) array of data points from a file.
 
 C<tridens -i data.dat> -- write a density plot and display the result in the
 pdf viewer and enter interactive mode.
@@ -110,30 +111,9 @@ REQUIREMENTS AND DEPENDENCIES below for other features and requirements.
 Most plotting options, (axes, labels, etc.) are controlled
 through command line options or interactively, more are available by setting
 parameters in a parameter file. Command line
-options override settings in the parameter file. If you need to set
-more options than are available on the command line (or prefer to use
-a configuration file) type
-
-C<tridens -paramfile>
-
-to generate the file F<.tridens> with the default parameters
-in the current directory.  Then edit this file to suit your
-needs. It will be read each time tridens is run.  This
-parameter file is moderately well commented.  Any parameters that
-are deleted from or 'commented out' of F<.tridens> will be
-determined by the built-in defaults.  If you copy F<.tridens>
-to F<infilename.p> and edit the result, then, only when
-processing data file F<infile>, the file F<infilename.p>
-will be read after F<.tridens> and any parameters present
-will override previously set values. There
-is a copy of F<.tridens> inside the F<tridens> executable program,
-which is a plain text file. If you edit these internal parameters,
-then they become the default parameters.
-In summary parameters are set in this order: 1) internal (default) parameters,
-2) parameters in F<.tridens>, 3) parameters in F<infilename.p>, 4) parameters
-given on the command line. 5) parameters set interactively.
-In this list, settings with higher numbers override 
-settings with lower numbers.
+options override settings in the parameter file. See the B<save> and
+B<load> commands and the B<paramfile> option for saving and restoring the current parameter values.
+See the section SAVING AND RESTORING SETTINGS below for more information.
 
 =head2 Interactive mode
 
@@ -141,15 +121,16 @@ Interactive mode is entered by either omitting a data filename on the command li
 or giving the option B<-i>.
 Here is an example:
 
- myshellprompt > tridens -i -o sq.pdf sq1.dat
+ myshellprompt > tridens -i sq1.dat
  tridens> plot
- tridens> set -title 'This is the title'
+ tridens> set title 'This is the title'
  tridens> plot
  tridens> plot 'other.dat'
 
-In the example, the plot is drawn twice, adding a title the second time. Then, data from
+In the example, the first plot is displayed twice, adding a title the second time. Then, data from
 a second data file is plotted. If Term::Readline is installed on your system (It is available
-as a package in all linux distributions.) the you can use command history and tab completion.
+as a package in all linux distributions.) then you can use command history and tab completion.
+(Ie, hit 'tab' twice after typing a bit.)
 Try tab completion in various contexts. (In particular, this document may be out of date,
 and tab completion can show available commands or arguments.)
 The following lists commands recognized in the interactive mode.
@@ -195,17 +176,19 @@ equivalent to using 'read' and then 'plot'.
 
 =item B<set> I<OPTION> I<VALUE> ...
 
-Set the value of an option (or options). If the option is boolean then I<VALUE>
-must be omitted.
-In interactive mode, boolean options are set with B<set> and unset with B<unset>. 
-When starting tridens from the command line
-boolean options are unset by prefixing the option name with 'no'.
-For example: C<set cmgray title 'title of plot'>, sets the title and sets grayscale
-mode.
-On the commadline C<-nokey> supresses drawing the color key, while in interactive mode
-this is done with C<unset key>.  The leading '-' can
-be omitted from the first option to be set. For example C<set xmin 0> to set the lower
-limit of the x-axis to 0. You may also put an '=' between the option and the value.
+Set the value of an option (or options). If the option is
+boolean then I<VALUE> must be omitted.  In interactive mode,
+boolean options are set with B<set> and unset with B<unset>.
+When starting tridens from the command line boolean options
+are unset by prefixing the option name with 'no'.  For
+example: C<set cmgray title 'title of plot'>, sets the title
+and sets grayscale mode.  On the commadline C<-nokey>
+supresses drawing the color key, while in interactive mode
+this is done with C<unset key>.  The leading '-' can be
+omitted in interactive mode (except when needed for
+disambiguations). For example C<set xmin 0> to set the lower
+limit of the x-axis to 0. You may also put an '=' with no intervening
+spaces between the option and the value.
 
 
 =item B<unset>
@@ -262,11 +245,20 @@ You can also use "plot  'filename'", but it will not re-read the data.
 =item B<save> I<configfile>
 
 Save the current plotting options to the file I<configfile> or 'save.tridens' if I<configfile> is omitted.
-There is no 'save' command for the plot itself, as it always written to a file.
+There is no 'save' command for the plot itself, as it always written to a file. This saves options
+that are currently set. When starting a new tridens session, the command B<load> will restore
+the saved parameter settings.
 
 =item B<load> I<configfile>
 
 Load saved plotting options from the file I<configfile> or 'save.tridens' if I<configfile> is omitted.
+If the default filename for saved parameters 'save.tridens' is found when tridens starts, then
+it will be loaded automatically.
+
+=item B<textdoc>
+
+Print this entire user documentation as plain text. Using B<man> or B<html> if possible
+preferrable.
 
 =item B<listcolors>, B<listsymbols>, B<listfonts>, B<findcolors> 
 
@@ -367,10 +359,13 @@ space on the plot is filled and no hexagons(squares)
 overlap. You do not have to have a data point for each point
 in the region plotted; there can be holes in the data.
 
-The length of the sides of the polygons is computed from the distance from the first
-data point to the point nearest to the first point in such a way that all the plot surface is covered
-with no overlap. This can be turned off with option '-noautolength' or by giving the
-option '-sidelength', in which case the length of the side must be set explicitly on
+The length of the sides of the polygons is computed from the
+distance from the first data point to the point nearest to
+the first point in such a way that all the plot surface is
+covered with no overlap if nearest neighbor distances are
+all the same. This can be turned off with option
+'-noautolength' or by giving the option '-sidelength', in
+which case the length of the side must be set explicitly on
 the command line or in interactive mode.
 
 If the data is on a square lattice with different units on
@@ -513,7 +508,7 @@ with 'no' when passing command line options to tridens from a shell
 (ie B<-nokey>). In interactive mode, the option is set to false with
 'unset' (ie B<unset key>).
 
-They can also be used in interactive
+The options listed here may  also be used in interactive
 mode using the 'set' command. In this case the leading '-' may
 be omitted. Any options below that take an
 argument can have either spaces between the option name and
@@ -561,7 +556,12 @@ pdflatex installed.
 B<-paramfile> 
 write parameter startup file template to the file .tridens
 This template can be edited. If present, it will be read before
-processing command line arguments.
+processing command line arguments. Currently only works from command
+line; not in interactive mode. See also the  B<save> command, which
+is a newer method to store preferred paramter values in a file.
+The option B<-paramfile> differs from B<save> in that the former
+writes a copy of the default parameters, whereas the latter writes the
+current state of the options.
 
 =head2     Plot Contents:
 
@@ -666,14 +666,15 @@ An optional argument sets the hue.
 The following three parameters set to a constant any hsb values that are I<not> mapped
 from the data via  the color map chosen above. That is, B<-hue>, has no effect if B<-cmhue> is chosen, etc.
 
-B<-hue>  I<SATURATION> 
-(default 1) from 0 to 1
+B<-hue>  I<HUE> 
+(default 1) from 0 to 1. Sets the hue of the colors representing the data.
+This only has an effect if the hue is not controlled by the color map.
 
 B<-saturation>  I<SATURATION> 
-(default 1) from 0 to 1
+(default 1) from 0 to 1. Sets the saturation of the colors representing the data.
 
 B<-brightness>  I<BRIGHTNESS> 
-(default 1) from 0 to 1
+(default 1) from 0 to 1.  Sets the brightness of the colors representing the data.
 
 The raw data is normalized so that it can be mapped to color hues
 in the range 0 to 1. To use only a subset of these colors, the upper
@@ -787,7 +788,8 @@ B<-ticklabeloffset>
 changes distance of tick from frabme
 
 B<-ticksshiftouter> B<-noticksshiftouter> 
-(default unset) Offset the outermost ticks slightly to make them more visible.
+(default unset) Offset the outermost ticks slightly to make them more visible
+in case they are obscured by the frame.
 
 B<-ticklinew>  I<NUM> 
 scale factor for width of tick lines
@@ -941,7 +943,7 @@ Rotate the plot by 90 degrees.
 B<-readline> B<-noreadline>
 If set, (some of) command history, commandline editing and command completion are 
 enabled. This only works in interactive mode and depends on having one of
-the  perl readline libraries installed (the perl gnu readline library is probably best).
+the  perl readline libraries installed (only the perl gnu readline library provides completion).
 
 B<-autodata> B<-noautodata>
 (default is set) Attempt to detect the data file format. A line with three columns of
@@ -1000,12 +1002,65 @@ text.
 
 kdialog is used by command gset.
 
+=head1  SAVING AND RESTORING SETTINGS
+
+If you need to set more options than are available on the command line (or prefer to use
+a configuration file) type
+
+C<tridens -paramfile>
+
+to generate the file F<.tridens> with the default parameters
+in the current directory.  Then edit this file to suit your
+needs. It will be read each time tridens is run.  This
+parameter file is moderately well commented.  Any parameters that
+are deleted from or 'commented out' of F<.tridens> will be
+determined by the built-in defaults.  If you copy F<.tridens>
+to F<infilename.p> and edit the result, then, only when
+processing data file F<infile>, the file F<infilename.p>
+will be read after F<.tridens> and any parameters present
+will override previously set values. There
+is a copy of F<.tridens> inside the F<tridens> executable program,
+which is a plain text file (a perl program). If you edit these internal parameters,
+then they become the default parameters.
+In summary, parameters are set in this order: 1) internal (default) parameters,
+2) parameters in F<.tridens>, 3) parameters in F<infilename.p>,
+4) parameters in F<save.tridens> (saved with the B<save> command),
+5) parameters
+given on the command line. 6) parameters set interactively.
+In this list, settings with higher numbers override 
+settings with lower numbers. In addition, the command B<load> can be used at anytime interactively
+to restore parameters settings that were saved with B<save> F<FILENAME>.
+
+On exiting tridens normally the interactive command history is automatically saved
+(by gnu readline). The history will be read the next time tridens is started so that
+the commands from the previous session are available in the history.
+
+=head1 TROUBLESHOOTING
+
+If tridens won't start or misbehaves, try deleting parameter files 'save.tridens'
+and  '.tridens' as they may be out of date.
+
+=head1 INTERACTIVE SHELL
+
+The subsection 'Interactive mode' above presented the basic operation and
+commands of the interactive mode. This section deals with features of the
+interactive shell with 'readline' enabled. For more information see the
+gnu readline library documentation.
+
 =head1 AUTHOR
 
 John Lapeyre <lapeyre aaat physics doot arizona dat edu>
 
 =head1 BUGS
 
+set xlabel '\eta' gives  "failed to return bounding box" error
+  workaround is to use ' \eta'
+
+set cmlo 1   sometimes gives error about range, when the value is
+      actually ok. Try setting cmhi to something else first. Eventually,
+      I was able to set them to what I wanted.
+      Probably just need to add a variable check called nonnegfloat1
+      to use rather than posfloat1
 
 =head1 FILES
 

@@ -7,7 +7,7 @@ eval 'exec perl -x -wS $0 ${1+"$@"}'
 
 Tridens density plot program
 
-Copyright 2003, 2009 John Lapeyre, All rights reserved.
+Copyright 2003, 2011 John Lapeyre, All rights reserved.
 This program is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation; either version 2, or (at your option)
@@ -24,7 +24,7 @@ GNU General Public License for more details.
 
 package Tridens;
 
-our $VERSION = '0.016';
+our $VERSION = '0.017';
 # use POSIX module for log10 and floor functions
 use POSIX;
 use Pod::Simple::Text; # for processing the docs
@@ -48,25 +48,29 @@ use Text::ParseWords;
 # 0.16 Feb 25 2010 
 #  * set ColorMapLo default to 0.2. 
 #  * add viewerscale feature
-#
+# 0.17 
+#  * added -nosameunits feature
+#  * fixed some small bugs
+#  * improved docs
+#  * added tab completion
+#  * fixed portrait to landscape and back bug
+#  * set some fonts
+#  * strip some trailing zeros in postscript
+#  * changed dot to x in sci notation
+#  * correctly detect if gv processs is killed
 # TODO
-# Give examples:
-# Have program generate data for examples
-# Detect and give error message if data is not in correct format
-#  otherwise, we get undefined perl error messages
-# Make a bit of a test suite
-# Command line option to just print examples
-# in doc state that only polys of 3 4 or 5 sides are supported
-#  maybe change how angles and sides are selected
-#  add command line option for all the numbers of side
-# autolength only works for hexagons and squares currently
-# add ability to use rectangles
-# Cannot rotate hexagons or squares if lattice is rotated.
-# Clean up postscript bounding box and page size stuff.
+# many arguments are not checked for sanity or correctness or existence.
+# Ability to save interactively set options. Use Dumper, I suppose.
+# catch ctrl c in demo mode
+# add ability to adjust sci notation numbers better.
+# add ability to write tick labels with numbers multiplied by powers
+# of ten, so that the power of ten can be put into the label
+# also ability to to sci notation on the tick labels.
+# plot is always square
 
 =begin comment
 
-   tridens -- Programmers notes.
+   tridens -- Programmers' notes.
    An identifier begins with a capital letter if and only if it is 
    global (declared with 'our').
    Sections of this file and related groups of routines are separated
@@ -100,22 +104,43 @@ lattice, each coordinate pair in the input file is covered
 with a hexagon(square).  The output file format is
 PostScript or PDF. tridens also operates in an interactive mode.
 
+=head2 Quick start
+
+C<tridens data.dat> -- write a density plot data.dat.pdf of a regular square
+(or rectuangular) array of data points from a file with lines of the form
+'x y val'.
+
+C<tridens -tri data.dat> -- write a density plot data.dat.pdf of data on a triangular
+lattice from a file with lines of the form 'x y val', where at least one of the nearest
+neighbors to the first point is present. (There can be 'holes' or missing points in the
+remainder of the data set.)
+  
+
 =head2 Why another plotting program?
 
 =over 1
 
-=item 1   I could not find a program that can make a density plot on
+=item 1   I could not find a program that can make a density plot of hexagonal tiles on
 a triangular lattice.
 
-=item 2   To produce PostScript plots, tridens requires only a standard perl installation,
-which is present on all Linux and nearly all Unix machines.
-(But you probably want to generate eps or pdf, in which case ghostscript
-is required, but this is also standard on Unix/Linux; see
-below.)  The tridens program is a single file that needs no
-compilation or installation and generates its own
-documentation and parameter files. I wrote it after trying  downloading/compiling/getting licenses/libraries
-for a bunch of programs that couldn't
-do a density plot on a triangular lattice anyway.
+=item 2 The method of producing plots is different from most
+other methods. The range of application of tridens is perhaps more
+limited, but it also produces results that are more desirable
+in some cases. For instance, gnuplot's pm3d can be applied
+in more cases, but produces an essentially different plot.
+
+=item 3 To produce PostScript plots, tridens requires only a
+standard perl installation, which is present on all Linux
+and nearly all Unix machines.  (But you probably want to
+generate eps or pdf, in which case ghostscript is required,
+but this is also standard on Unix/Linux; see below.)  The
+tridens program is a single file that needs no compilation
+or installation and generates its own documentation and
+parameter files. I wrote it after trying
+downloading/compiling/getting licenses/libraries for a bunch
+of programs that couldn't do a density plot on a triangular
+lattice anyway. (This was in 2003, perhaps there are more programs
+available now that are easier to install.)
 
 =back
 
@@ -162,9 +187,30 @@ Here is an example:
  tridens> plot 'other.dat'
 
 In the example, the plot is drawn twice, adding a title the second time. Then, data from
-a second data file is plotted. The following lists all commands recognized in the interactive mode.
+a second data file is plotted. If Term::Readline is installed on your system (It is available
+as a package in all linux distributions.) the you can use command history and tab completion.
+Try tab completion in various contexts. (In particular, this document may be out of date,
+and tab completion can show available commands or arguments.)
+The following lists commands recognized in the interactive mode.
+
+=head3 Commands in interactive mode
 
 =over 1
+
+=item B<h> 
+
+Print short help.
+
+
+=item B<man>
+
+View long documentation as unix man page.
+
+
+=item B<html>
+
+Print documentation to  tridens.html and try to open it in a browser (firefox by default)
+
 
 =item B<plot>
 
@@ -172,7 +218,10 @@ write (or rewrites) the output plot file. If a filename is given as an argument 
 the data is read (or reread) from the file. If there is no argument, then the most recently read
 data is used. Sometimes, after setting parameters, you will get strange results unless you reread
 the input file. If you have set the option B<-dis> then tridens will try to display the plot
-immediately in ghostview.
+immediately in ghostview. Sometimes, if you have killed the viewer, it will not reappear automatically
+after giving the 'plot' command. In this case, start the viewer by giving the 'viewer' command.
+(This bug has been fixed.)
+
 
 =item B<replot>
 
@@ -201,32 +250,43 @@ For example:
   ColorMap = FALSE
   Title = ''
 
-=item B<showall>  
+=item B<fshow>  
 
 print all plot parameter values preceded by a list of
 command line switches that can be used to set them. This list
 of options is printed because more than one option
 may set the same variable, eg, B<-axis> and B<-noaxis>. An
-optional argument causes showall to print only those
+optional argument causes fshow to print only those
 parameters matching the argument. (The pattern is typically
 a string, but it can be a perl regular expression.)
 Currently, they are shown in alphabetical order, which is
-not so useful. For example 'showall axis' prints all parameters or options
+not so useful. For example 'fshow axis' prints all parameters or options
 containing the string 'axis'.
 
 =item B<viewer> 
 
 Launch a viewer that displays the plot.
 Useful for instance to relaunch the viewer if it is killed or crashes.
+(But this should happen automatically in most cases.)
 
 =item B<example> I<N>
 
 Write example plot number I<N> and display it in the viewer.
 
+=item B<demo>
+
+Display demonstration plots in the viewer.
+
 =item B<read> I<somefile.data>
 
 Reads the data from the file, that can then be plotted with 'plot'. Use this to force rereading of data file.
 You can also use "plot  'filename'", but it will not re-read the data.
+
+
+=item B<listcolors>, B<listsymbols>, B<listfonts>, B<findcolors> 
+
+These are commands corresponding to
+the commandline options of the same names described below.
 
 =item B<exit>  
 
@@ -234,13 +294,14 @@ quit interactive mode and exit tridens
 
 =back
 
-All commands above may be abbreviated.  Typing the name of a
+All commands above may be abbreviated. Although not normally
+useful, typing the name of a
 'variable' prints its value, with the variable as it appears
 in the configuration file F<.tridens> (described below)
 except that it is prepended with I<Tridens::>, eg
 I<$Tridens::Title>.  To change plot parameters you may use
-B<set> as in the example above or you may also use the
-variables as they appear in the file F<.tridens>, again with
+B<set> as in the example above. Although usually not necessary,
+you may also use the variables as they appear in the file F<.tridens>, again with
 the prefix. For example $Tridens::Title = 'title of plot'.
 Note that all variables begin with a dollar sign, as in the
 perl language.
@@ -273,6 +334,17 @@ the interactive mode, while making it difficult for the
 interactive user to accidentally change an important
 subroutine or variable with harmful results.
 
+=head3 Command line editing
+
+The up-arrow and down-arrow recall the previous and next command in the command
+history. Ctrl-p and Ctrl-n do the same thing. Command line editing is in the
+'emacs' style by default. That is ctrl-a goes to the beginning of the line. Ctrl-e
+to the end. ctrl-d deletes a character, etc. It is probably possible to change
+this somehow. When typing options to 'set' and 'show', you can press the tab
+key after typing only a few characters of a word to get tab-completion. All these
+editing features are part of the perl 'Readline' packages and may vary with or 
+be missing from your perl installation.
+
 =head2 Data file format
 
 In the standard format, the input data file must have lines of the form
@@ -287,7 +359,8 @@ ignored. Comment lines in the data file can start with the
 characters $ % ; ! # .  If the option B<-grided> (with
 details described below) is set then the data file must consist
 of only values with the coordinates implied by the row and column of
-the number.
+the number. With B<-grided> an n by m plot will be produced from a data file with m lines
+and n numbers in each line.
 
 The program does not assume that the data is on a triangular
 grid-- the coordinates x,y can be any numbers. But a hexagon
@@ -299,10 +372,17 @@ overlap. You do not have to have a data point for each point
 in the region plotted; there can be holes in the data.
 
 The length of the sides of the polygons is computed from the distance from the first
-data point to the next closest point in such a way that all the plot surface is covered
+data point to the point nearest to the first point in such a way that all the plot surface is covered
 with no overlap. This can be turned off with option '-noautolength' or by giving the
 option '-sidelength', in which case the length of the side must be set explicitly on
-the command line.
+the command line or in interactive mode.
+
+If the data is on a square lattice with different units on
+the x- and y- axes (e.g. time and distance) use the
+-nosameunits option below (this is the default). In this
+case nearest points to the first point in both the x- and y-
+directions are computed to determine the length of the sides
+in physical units.
 
 This is  tested under Linux. It should work on MS and Apple platforms
 if you install perl. ( and also ghostscript if you want eps or pdf) and
@@ -322,6 +402,7 @@ program to get pdf and eps from the ps generated by tridens.
 
 =head2 Text in title and labels
 
+Arguments that are text strings are enclosed in single or double quotes.
 Superscripts and subscripts, fonts, colors, and fine control
 of spacing are implemented using escape codes in the text
 strings. Each code consists of a backslash '\' followed by
@@ -350,9 +431,9 @@ F<.tridens>. You can set the environment variable GS_FONTPATH of the shell in wh
 you run tridens to use fonts than that are not in the default path
 of ghostscript. There is a $FontPath parameter in F<.tridens> that does
 the same thing. If you produce pdf using B<-pdf> then the fonts will
-be embedded in the file containing the plot, making the plot portable.
+be embedded by gs in the file containing the plot, making the plot portable.
 (Currently this is not available for ps and eps. But producing pdf and
-then using a program such as epstopdf will produce an eps plot with high
+then using a program such as pdftops will produce an eps plot with high
 quality embedded fonts.)
 
 =item '\^ '  '\^2 '  '\_ '  '\- '
@@ -379,9 +460,10 @@ almost black to almost white. For example: I<-title '\red A \blue B \green C'>.
 
 =item '\symbolname'
 
-This prints a symbol from the adobe symbol font by name, without explicitly changing the font. That is,
+This prints a symbol from the Adobe symbol font by name, without explicitly changing the font. That is,
 you can insert theses symbol names in normal text. To see a list of symbol names use the option
-B<-listsymbols>. For example: I<'\sigma \^ 2'>.
+B<-listsymbols>. For example: I<'\sigma \^ 2'>. There are also some aliases from TeX/LaTeX to
+the Adobe symbol names
 
 =item  '\\'  '\nnn'
 
@@ -409,13 +491,14 @@ C<tridens -eps -tri mytdata>
 Write density plot on triangular grid (covered with hexagons) to F<mytdata.eps> after reading data 
 from file F<mytdata>. Size of hexagons computed automatically.
 
+
 Further examples of plots illustrating the use of various arguments can be generated using B<-ex> I<n>. For instance
 I<tridens -ex 2>  creates the second example plot. You can see the example plot immediately if you
 use I<tridens -display -ex 2>, provided the parameter I<$Viewer> is set to correctly launch a ps/pdf viewer.
 Most of the example plots are not realistic examples, but rather tests of features.
 
-Using I<tridens -exall>, produces all the examples sequentially and launhces the viewer to view them,
-prompting the user after each plot. I<tridens -exall N> instead pauses for N seconds between example
+Using I<tridens -demo>, produces all the examples sequentially and launhces the viewer to view them,
+prompting the user after each plot. I<tridens -demo N> instead pauses for N seconds between example
 plots.
 
 =head1 HINTS
@@ -473,18 +556,41 @@ processing command line arguments.
 If  B<-square>, B<-tri>, or B<-circle> are set interactively, then 'replot' rather
 than 'plot' must be used.
 
-B<-square> (default) cause squares to be drawn at data coordinates, not hexagons.
+B<-square> (default) cause squares to be drawn at data coordinates, not hexagons. By default
+this uses the B<-nosameunits> option. But for a data file with a nearest neighbor of the
+first point absent in one of the x or y directions, setting B<-sameunits> will be sucessful
+as long as a nearest  neighbor is present in one direction.
 
-B<-tri>  assume a triangular lattice, I<ie> hexagons are drawn.
+B<-tri>  assume a triangular lattice, I<ie> hexagons are drawn. This option automatically
+sets the B<-sameunits> option.
 
-B<-circle>  draw circles on data coordinates.
+B<-circle>  draw circles on data coordinates.  This option automatically
+  sets the B<-sameunits> option.
 
-B<-sidelength> I<SIDELENGTH> length of sides of polygons covering the density plot.
+B<-sidelength> I<SIDELENGTH> length of sides of polygons covering the density plot. By
+default, this is computed automatically and this option need not be given.
+
+B<-xsidelength> I<SIDELENGTH> length of sides on x-axis. Use only if -nosameunits
+and -noautolength are both set.
+
+
+
+B<-ysidelength> I<SIDELENGTH> length of sides on y-axis. Use only if -nosameunits
+and -noautolength are both set.
 
 B<-autolength>  (default) compute length of side of polygon from smallest distance
                  between data points.
 
 B<-noautolength>  do not compute length of side automatically
+
+B<-sameunits>  assume x and y coordinates are in the same units (triangular lattice tiled
+with hexagons makes more sense this way.) Finding the separation between data points on the x-y
+plane is computed using Euclidean distance. Use 'replot' after setting this interactively.
+
+B<-nosameunits>  (default) assume x and y coordinates have different units. That is, one might be time and another
+  length. When finding the separation between data points to compute the size of the tiling square,
+  x-axis and y-axis are treated separately. This does not work with triangular lattice.
+    Use 'replot' after setting this interactively.
 
 B<-numberpoly>  write numeric value in each hexagon.
 
@@ -557,7 +663,9 @@ B<-ylabel> I<'the y label'>
 
 B<-rotylabel>,B<-norotylabel>(default) Rotate (or not) the y-axis label by 90 degrees
 
-B<-fontscale> I<SCALE> (default value 1.0) Scale all character fonts by this factor.
+B<-fontscale> I<SCALE> (default value 1.0) Scale all character fonts by this factor. Characters
+in various places have their own scaling; ie title, key, etc. B<fontscale> is an additional
+factor that multiplies each of these.
 
 B<-subscale> I<SCALE> Scale subscript relative to normal script by this amount.
 
@@ -574,13 +682,19 @@ that contain I<STRING> as a substring. For example:
 C<tridens -findcolors red> lists all colors with 'red' in
 the name.
 
-B<-listsymbols> I<N>  print a list of adobe symbols for use in strings (for the title, etc.)
+B<-listsymbols> I<N>  print a list of Adobe symbols for use in strings (for the title, etc.)
 If I<N> is given, then symbol names are listed in I<N> columns. I<N> defaults to four if the argument
 is omitted. A few aliases to latex symbol names are given.
 
-B<-key>  (default), B<-nokey>  draw the color key or not
+B<-key>  (default), B<-nokey>  draw the color key or not. The color key shows the numerical value
+      correpsonding to colors on the plot
 
-B<-explim> (default 1) largest power of ten to write in normal, rather than scientific notation.
+B<-keynbars>  I<NUM> (default 33) the number of bars to draw in the color key
+
+B<-keylabelskip>  I<NUM> (default 4) Print a numerical label on a color bar in the key for
+  only every NUMth bar. By default there are then 9 numerical labels on the color bars.
+
+B<-explim> (default 1) largest power of ten to write in normal, rather than scientific notation in they key.
 
 B<-keydigits> (default 2) Number of digits to write in mantissa in key labels.
 
@@ -594,9 +708,10 @@ B<-polylinew>  I<NUM> scale factor for width of line around polygon
 
 B<-framelinew>  I<NUM> scale factor for width of line in frame.
 
-B<-ticklength>  I<NUM> 
+B<-ticklength>  I<NUM> (default 1) A scale factor for the ticklength.
 
-B<-tickfontscale> I<NUM>
+B<-tickfontscale> I<NUM> These are scale factors for text in various places on the plot. In addition, there
+is an overall scale factor set by B<-fontscale>.
 
 B<-keyfontscale> I<NUM>
 
@@ -614,8 +729,9 @@ B<-xaxis>, B<-yaxis>, B<-noxaxis>, B<-noyaxis>  draw each axis or not(default)
 
 B<-axis> B<-noaxis>(default)  draw both x and y axis, or neither
 
-B<-xbuf> I<XFRAC> , B<-ybuf>  I<YFRAC> (default 0.03)  space left between plot and frame as a fraction of
-plot width. In interactive mode, you must use 'replot' for this change to take effect.
+B<-xbuf> I<XFRAC> , B<-ybuf> I<YFRAC>, B<-buf> I<FRAC> (default 0.03)  space left between plot and frame as a fraction of
+plot width. In interactive mode, you must use 'replot' for this change to take effect. Use B<-buf> to
+set both the x and y buffer fractions to the same value.
 
 =head2  Output:
 
@@ -644,7 +760,7 @@ B<-eps>      write eps file (must have ghostscript installed)
 
 B<-pdf>      (default) write pdf file  (must have ghostscript installed)
 
-B<-bbpad> (default 20) Number of points by which to enlarge the bounding box in each direction.
+B<-bbpad> (default 5) Number of points by which to enlarge the bounding box in each direction.
 Increase this if part of the plot is clipped at the edge. Decrease this if too much white space
 is shown around the plot. (This is relevant for 'eps' and 'pdf' formats)
 
@@ -661,7 +777,7 @@ that is, the data is assumed to be on a grid of unit squares.
 
 B<-ex> I<n>  write example plot number I<n>. If B<-display> is given, show plot in viewer.
 
-B<-exall> I<n>  write and display all example plots. If optional number I<n> is given,
+B<-demo> I<n>  write and display all example plots. If optional number I<n> is given,
 there is a pause of I<n> seconds between plots.
 
 B<-v>   verbose: print more messages during operation.
@@ -686,7 +802,6 @@ package must be installed in order for readline support
 (command history, command line editing, tab completion) to
 be enabled. This makes the interactive mode much more friendly.
 
-
 =head1 AUTHOR
 
 John Lapeyre <lapeyre aaat physics doot arizona dat edu>
@@ -706,7 +821,7 @@ fonts are simply rescaled normal fonts.
 
 Documentation not uniform.
 
-Plotting on hexagonal lattice is does not work.
+Plotting on hexagonal lattice does not work.
 
 Doesn't react gracefully to all user errors.
 
@@ -718,7 +833,7 @@ Tridens is distributed as a single file.
 
 =head1 COPYRIGHT
 
-Copyright 2003, 2009 John Lapeyre, All rights reserved.
+Copyright 2003, 2011 John Lapeyre, All rights reserved.
 This program is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation; either version 2, or (at your option)
@@ -742,6 +857,8 @@ sub run_shell {
     my $exit;
     my $TRUE = $Tridens::TRUE;
     my $FALSE = $Tridens::FALSE;
+    $Tridens::Display = $TRUE;
+    $Tridens::NoDisplay = $FALSE;
     use Getopt::Long;
     $E = 1; # only to stop warning
     $Pi = 1;
@@ -767,7 +884,7 @@ sub run_shell {
 	'exit' => sub { $exit = $Tridens::TRUE; },
 	'!' => sub { my $s = `$_[0]`; chomp($s);$s},
 	'show' => $showsub,
-	'showall' => sub {&Tridens::print_all_parameters($_[0]);return undef},
+	'fshow' => sub {&Tridens::print_all_parameters($_[0]);return undef},
         'set' => sub { my ($st) = @_; my %h = (  );
 		       $Tridens::SettingOpts = $TRUE;
 		       my $st1;
@@ -791,7 +908,7 @@ sub run_shell {
 		     #  warn "WARNING $@" if $@;
 		       @ARGV = Text::ParseWords::shellwords($st1); # preserve quoted strings
 		       $ARGV[0] = '-'. $ARGV[0] unless $ARGV[0] =~ /^\-/;
-		       GetOptions( \%h, @Tridens::Optlist );
+		       return undef unless GetOptions( \%h, @Tridens::Optlist );
 		       if (@ARGV >0) {
 			   print STDERR "Ignoring extra words at end of line '" .
 			       join(",",@ARGV) . "'\n";
@@ -803,11 +920,42 @@ sub run_shell {
 	'read' => sub { &Tridens::read_data(Text::ParseWords::shellwords($_[0])); return undef;},
 	# undef outfile here so that subsequent plots recompute the outfilename based on input file
 	'example' => sub {&Tridens::setup_example_plots();&Tridens::do_example($_[0],'view');$Tridens::Outfile=undef},
-	'help' => sub {print"Try 'set -man' or 'set -h' for help.\n".
-			   "Try 'example n' to run example number n.\n";undef}
+	'man' => sub { &Tridens::show_man_page(); undef;},
+	'html' => sub { &Tridens::show_html_page(); undef;},
+	'demo' => sub { $Tridens::DoAllExamples=0; &Tridens::do_all_examples(); undef;},
+	'h' => sub { &Tridens::show_short_help(); undef;},
+	'help' => sub { my ($opt) = @_;
+			if (defined $opt) {
+			    $opt = &Tridens::strip_spaces($opt);
+			    my $h = $Tridens::OptHandlers{$opt};
+			    $h = [$h] unless ref($h) eq 'ARRAY';
+			    if (exists $h->[0]->{HELP}) {
+				print $opt . $h->[0]->{HELP} ."\n"; return undef}}
+			    print"Try 'man' or 'html' for help or 'h' for short help.\n".
+				"Try 'example n' to run example number n.\n";undef}
 	);
+
+   # make commands out of these things that are also called via 'set'
+    foreach my $com ( qw( listcolors findcolors listsymbols listfonts ) ) {
+	$comacts{$com} = sub {Tridens::process_command_line_options($com => $_[0] );return undef;}
+    }
+
     my @coms = sort keys %comacts;
     my $term = Term::ReadLine->new('tridens');
+    $term->Attribs->{completion_query_items} = 200;
+    $term->Attribs->{completion_function} = sub {
+        my ($text, $line, $start) = @_;
+	# print("<<$text>><<$line>><<$start>>\n");
+	if ($line =~ /^\s*(set|show|se|sh|sho)\s+\w*$/) {
+	    return @Tridens::Optlistnames;
+	}
+	if ($line =~ /^\s*\w*$/) {
+	    return keys %comacts;}
+	if ($line =~ /^\s*se\w+\s+font\s+[\w\-]*$/) {
+	    return keys %Tridens::FontList;}
+        if ($line =~ /^\s*(h|he|hel|help)\s+\w*$/) {
+	    return @Tridens::HelpTopics;}
+       };
     my $prompt = "tridens> ";
 # using term->OUT may be useful, but it prevents user from printing to STDOUT
 #    my $OUT = $term->OUT || \*STDOUT;
@@ -866,13 +1014,13 @@ sub run_shell {
 
 package Tridens;
 use strict;
-
-use strict;
 use Getopt::Long;
 
 our ($TRUE,$FALSE); 
 
 # Declare user settable parameters, and most other global variables
+
+our ($OptionArg); # kludge. use this var temporarily for storing value when setting option
 
 our ($ParameterList, $PlotWidth, $LandScape, $Xmin,
  $Xmax, $Ymin, $Ymax, $XTickStart, $XTickInt,
@@ -880,29 +1028,38 @@ our ($ParameterList, $PlotWidth, $LandScape, $Xmin,
  @MagicIntervals, @Divisions, $ColorMap, $Hue, $XAxisLabel,
  $YAxisLabel, $RotateYAxisLabel, $Title, $TitleYOffset,
  $LBound, $HBound, $TickInterval, $NumberOfSides,
- $AutoLength, $LengthOfSide, $Rotation, $Rotation2,
+ $AutoLength, $LengthOfSide, $XLengthOfSide, $YLengthOfSide,
+ $SameUnits, $Rotation, $Rotation2,
  $PSFormat, $BoundingBoxPad, $TTick, $BTick, $LTick, $RTick,
  $PolyBorder, $TriHexDraw, $LatticeGray, $NumberPoly,
  $NumberPolyDig, $NumberPolySciLim, $NumberPolyZero,
  $NumberPolyGray, $NumberPolySciScale, $XAxis, $YAxis,
  $DataNorming, $DataTransformPower, $UseColTrans,
  $ColorMapHi, $ColorMapLo, $ShowNormalized, $DrawKey,
- $NumKeyBars, $Xbuf, $Ybuf, $Fontname, $ItalicFontname,
+ $NumKeyBars, $KeyLabelSkip, $KeySepGray,
+ $KeyExpRaise,
+ $Xbuf, $Ybuf, $PlainFontname, $ItalicFontname, $Font,
  $BoldFontname, $BoldItalicFontname, $Saturation,
  $Brightness, $KeyYOffset, $KeyXOffset, $KeyWidth,
  $KeyHeight, $XAxisLabelOffset, $YAxisLabelOffset,
  $KeyDigits, $ExponentLimit, $TickLabelOffset, $PolyLineWScale,
- $FrameLineWScale, $AxisLineWScale, $TickLineWScale,
+ $FrameLineWScale,  $KeyLineWScale, 
+ $AxisLineWScale, $TickLineWScale,
  $TickLengthScale, $TickFontScale, $KeyFontScale,
  $AxisFontScale, $NumberPolyFontScale, $ExponentScale,
  $WriteBBox, $PostScriptInterpreter, $BBoxCommand,
  $GridDataFile, $RunShell);
 
-our($Outfile, $ExampleNumber, $DoAllExamples, $FontScale, $Subscale, $Supscale, $SSupscale,
+our ($Outfile, $ExampleNumber, $DoAllExamples, $FontScale, $Subscale, $Supscale, $SSupscale,
 $Viewer, $ViewerScaleOpt, $ViewerScale, $PostScriptInterpreterOptions, $FontPath, $Display,
-$NoDisplay, $HaveData, $ViewerStarted, $ViewerPid, $Pi, $E, @Optlist,
+  $NoDisplay, $HaveData, $ViewerStarted, $ViewerPid, $Pi, $E, @Optlist, @Optlist_non_interactive,
+    @Optlist_interactive, @Optlistnames,
 $BatchFile, $Browser, $PdfLatex, %RgbCodes, @RgbNames,
 $NumberOfExamplePlots, %Symcodes, @Symcodelist, %Symaliases, @Symaliaslist, $SScriptScale );
+
+our (%FontList);
+
+our ($ShortHelp);
 
 #==========================================================================
 # User parameters. These can be set by the user to change the behavior of the program.
@@ -917,6 +1074,7 @@ $NumberOfExamplePlots, %Symcodes, @Symcodelist, %Symaliases, @Symaliaslist, $SSc
 BEGIN{
 
 # True/False (binary) parameters use True=1, False=0.
+# Don't change these!
 $TRUE = 1;
 $FALSE = 0;
 
@@ -985,6 +1143,11 @@ $Pow2Eps = 1e-12;
 $AutoLength = $TRUE;
 #$AutoLength = $FALSE;
 
+# If the x and y axes have the same units, set this to $TRUE.
+# If they have different units (eg different physical quantities), set this
+# to $FALSE.
+$SameUnits = $FALSE;
+
 # set to $FALSE if data file has lines of triples "x y value"
 # set to 1 if data file has rows separated by newlines interpreted as follows
 # the number on row $j, column $i is the value of a data point at position $i,$j,
@@ -1007,6 +1170,11 @@ $NumberOfSides = 4;
 $LengthOfSide = 1;
 $Rotation = '0';
 
+# define these to override automatic setting of side lengths
+# if -nosameunits is set.
+#$XLengthOfSide =  $LengthOfSide;
+#$YLengthOfSide =  $LengthOfSide;
+
 # This is used for triangles. Currently broken.
 $Rotation2 = '0';
 
@@ -1021,7 +1189,7 @@ $PSFormat = 'pdf';
 #$PSFormat = 'ps';
 
 # pad the bounding box by this number of points
-$BoundingBoxPad = 20;
+$BoundingBoxPad = 5;
 
 # If $TRUE, draw a black border around each polygon
 # as well as its density color.
@@ -1094,7 +1262,17 @@ $ShowNormalized = $FALSE;
 $DrawKey = $TRUE;
 
 # number of colors/grays to show in key for plot
-$NumKeyBars = 16;
+$NumKeyBars = 33;
+
+# The key shows several bars with colors. Put a numerical label on every
+# nth bar, where n is KeyLabelSkip. Eg, a value of 1 means print a label on
+# every bar.
+$KeyLabelSkip = 4;
+
+
+# Gray value for horizontal lines separating key colors
+# Currently these lines are not drawn, so this does nothing
+$KeySepGray = .5;
 
 # space between plot area and frame drawn around plot
 # as fraction of plot width.
@@ -1103,14 +1281,18 @@ $Ybuf = 0.03;
 
 # Choose font names.
 
-$Fontname = 'Helvetica';
+$Font = 'helvetica';
+$PlainFontname = 'Helvetica';
+#$PlainFontname = 'lmr10';
 $ItalicFontname = 'Helvetica-Oblique';
 $BoldFontname = 'Helvetica-Bold';
 $BoldItalicFontname = 'Helvetica-BoldOblique';
 
 # A colon separated list of directories where fonts (Type 1) are located.
-# This is only necessary if you want to use one or more fonts in these directories
+# This is only necessary if you want to use one or more fonts in these directories,
+# and you are writing a pdf file
 #$FontPath = "";
+#$FontPath = "/usr/share/texmf/fonts/tfm/public/lm";
 $FontPath = "/usr/share/texmf-texlive/fonts/type1/public/cm-lgc";
 
 # This is multiplier for the size of all fonts to make them bigger or smaller.
@@ -1154,6 +1336,9 @@ $KeyXOffset = 0.1;
 $KeyWidth = 0.03;
 $KeyHeight = 1;
 
+# Fraction of character height to raise exponent in scientific notation in the key
+$KeyExpRaise = 0.55;
+
 # how far to move axis labels off of frame. As fraction of dimension of frame.
 $XAxisLabelOffset = 0.07;
 $YAxisLabelOffset = 0.07;
@@ -1173,7 +1358,8 @@ $TickLabelOffset = 0.01;
 # Default Line-widths/lengths will be multiplied by these numbers
 $PolyLineWScale    = 1;  # scale linewidth of drawn polyborder
 $FrameLineWScale     = 1;  # for frame around plot
-$AxisLineWScale     = .5;  # for frame around plot
+$KeyLineWScale     = 1;  # for frame around plot
+$AxisLineWScale     = .5;  # for lines denoting the axes
 $TickLineWScale    = 1;  # for tick marks
 $TickLengthScale  = 1;   # scale length of ticks
 $TickFontScale    = 1;   # scale tick font
@@ -1204,7 +1390,7 @@ $PostScriptInterpreterOptions = ' -dSAFER ';
 $Viewer = 'gv ';
 $ViewerScaleOpt = ' -scale=%n ';
 
-$ViewerScale = 1.0;
+$ViewerScale = 2.0;
 
 # Command to launch your web browser
 $Browser = 'firefox';
@@ -1290,9 +1476,9 @@ sub verbosesys {
 
 =cut
 
-{
+{ # initialization block
 
-    my $shorthelp = <<"EOSHH";
+     $ShortHelp = <<"EOSHH";
 Usage: tridens [options] infilename ... 
 
 infilename ... are the input data files
@@ -1301,38 +1487,79 @@ EOSHH
 
     $Verbose = 0;
 
-    @Optlist = (
-         'h', 'version', 'v', 'man', 'mandoc', 'htmldoc','html','pdfdoc',
-              'textdoc', 'paramfile', 
-	  'cmhue', 'cmgray','grey', 'cmsaturation:f', 'cmbrightness:f', 'cmsatbright:f',
+# some of these are not used interactively. Others are not used interactively
+# via 'set' but are promoted to 'commands' in the hash %comacts.
+    @Optlist_non_interactive = (
+       'h','v','i', 'listcolors:i', 'findcolors:s', 'listsymbols:i', 'listfonts',
+
+	);
+
+# removed because broken: 'hex'
+# these are used both interactively and on the command line
+    @Optlist_interactive = (
+          'version',  'man', 'mandoc', 'htmldoc','html','pdfdoc',
+              'textdoc', 'paramfile',
+	  'cmhue', 'cmgray', 'cmsaturation:f', 'cmbrightness:f', 'cmsatbright:f',
            'title:s', 'offsettitle:s', 'numberpoly',
-	   'square',  'tri' , 'circle', 'hex', 'ps', 'eps', 'pdf' , 'sidelength:s',
+	   'square',  'tri' , 'circle', 'ps', 'eps', 'pdf' , 'sidelength:s',
+           'xsidelength:s','ysidelength:s',
+           'sameunits','nosameunits',
 	   'autolength', 'noautolength',
 	   'portrait', 'landscape', 'plotwidth:f', 'xlabel:s', 'ylabel:s',
           'rotylabel',    'norotylabel',
            'polyborder', 'nopolyborder', 'xaxis','yaxis', 'noxaxis', 'noyaxis','noaxis','axis',
    	 'usepower', 'uselinear' , 'power:f',  'lattice', 'latticegray:f',
-         'cmlo:f', 'cmhi:f', 'shownorm', 'showraw', 'numbars:i', 'key', 'nokey',
-           'xbuf:f', 'ybuf:f', 'saturation:f', 'brightness:f', 'hue:f',
+         'cmlo:f', 'cmhi:f', 'shownorm', 'showraw', 'keynbars:i', 'keylabelskip:i', 'key', 'nokey',
+           'xbuf:f', 'ybuf:f', 'buf:f', 'saturation:f', 'brightness:f', 'hue:f',
 	   'xmin:s', 'xmax:s', 'ymin:s', 'ymax:s', 'grided','nogrided',
-	    'ex:i', 'exall:i', 'outfile:s', 'fontscale:f', 'display', 'nodisplay', 'i', 'batch:s',
-	  'listcolors:i', 'findcolors=s', 'listsymbols:i', 
+	    'ex:i', 'demo:i', 'outfile:s', 'fontscale:f', 'display', 'nodisplay', 'batch:s',
            'bbpad:i', 'subscale:f', 'supscale:f', 'ssupscale:f',
 	'explim:i','keydigits:i', 'viewerpid:i',
-	'ticklabeloffset:f','polylinew:f','framelinew:f','ticklinew:f', 'axislinew:f',
+	'ticklabeloffset:f','polylinew:f','framelinew:f','keylinew:f','keyexpraise:f',
+	 'keywidth:f','keyheight:f','keyxoffset:f','keyyoffset:f',
+         'ticklinew:f', 'axislinew:f',
 	'ticklength:f','tickfontscale:f','keyfontscale:f','axisfontscale:f','exponentfontscale:f',
-	'numberpolyfontscale:f', 'viewerscale:f'
+	'numberpolyfontscale:f', 'viewerscale:f',
+	'font:s'
 	);
+
+     @Optlist = (@Optlist_non_interactive,@Optlist_interactive);
+
+# use this for tab completion
+     @Optlistnames = @Optlist_interactive;
+     foreach (@Optlistnames) { s/[\:\=]\w+//} # strip type symbols
 
     my @optlist2 = (
 	'generatetest', 'test'
 	);
 
+# Should change this implementation, But actually OptHandlers is close
+# to good enough as is.
+# Have a structure here that has option names as keys,
+# eg axis , explim. The structure says: whether a noaxis command
+# should be contstructed. which variables are affected, what their
+# data type is, etc. a help string. possibly call backs.
+# Whether this option should showup in 'set' completion list, etc.
+# The list of variables can be extracted from
+# this. There may need another structure for some things that don't
+# fit in this. There might be a flag to say that this option should
+# be promoted to a command in interactive mode, rather than used
+# via 'set'. Almost all information for setting and showing the variables
+# and using them in commands would be contained in this structure.
+# Routines would then build various data structures from this one.
+
 # Handlers:
-# OPTVAL means set from the argument given by user
+# VAR is the variable to set
+# OPTVAL => 1 means set from the argument given by user
 # VAL means no argument, just set a value given in the handler
 # VALTYPE eq 'string' forces quotes around the arg before eval'ing
-    our %OptHandlers = (
+# SETSUB is a routine to do further processing, update quantities depending on VAR
+# DEFER means don't set the variable immediately, but rather assign
+#  the given value to $OptionArg. Then SETSUB may use this value to
+#  set tha actual value of VAR
+# DEFER should maybe be replaced with something better.
+# DOUNDEF: if no argument is given then variable is set to undef
+   our %OptHandlers = (
 	cmhue => {VAR => 'ColorMap', VAL => '"hue"', VALTYPE => 'scalar'},
 	cmgray => {VAR => 'ColorMap', VAL => '"gray"', VALTYPE => 'scalar'},
 	cmsaturation => [ {VAR => 'ColorMap', VAL => '"saturation"', VALTYPE => 'scalar'},
@@ -1352,23 +1579,40 @@ EOSHH
 		  {VAR => 'YAxis', VAL => 1, VALTYPE => 'bool'}],
 	noaxis => [ {VAR => 'XAxis', VAL => 0, VALTYPE => 'bool'},
 		  {VAR => 'YAxis', VAL => 0, VALTYPE => 'bool'}],
-	square => [ { VAR => 'NumberOfSides', VAL => 4},
+	square => [ { VAR => 'NumberOfSides', VAL => 4,
+         HELP=>' cause squares to be drawn at data coordinates, not hexagons. By default '.
+         'this uses the nosameunits option. But for a data file with a nearest neighbor of the '.
+         'first point absent in one of the x or y directions, setting sameunits will be sucessful'.
+          ' as long as a nearest  neighbor is present in one direction.'},
 		    { VAR => 'LengthOfSide', VAL => 1},
-		    { VAR => 'Rotation', VAL => '0' }],
+		    { VAR => 'Rotation', VAL => '0'}],
 	tri => [ { VAR => 'NumberOfSides', VAL => 6},
-		    { VAR => 'LengthOfSide', VAL => '1/sqrt(3)'},
-		    { VAR => 'Rotation', VAL => '30' }],
+		 { VAR => 'LengthOfSide', VAL => '1/sqrt(3)'},
+		 { VAR => 'Rotation', VAL => '30'},
+		 { VAR => 'SameUnits', VAL => 1},
+                      	],
 	circle => [ { VAR => 'NumberOfSides', VAL => 0},
 		    { VAR => 'LengthOfSide', VAL => '1/2'},
-		    { VAR => 'Rotation', VAL => '0' }],
+		    { VAR => 'Rotation', VAL => '0' },
+		    { VAR => 'SameUnits', VAL => 1}],
+        sameunits =>{VAR => 'SameUnits', VAL => 1, VALTYPE => 'bool'},
+        nosameunits =>{VAR => 'SameUnits', VAL => 0, VALTYPE => 'bool'},
 	viewerscale =>{VAR => 'ViewerScale', OPTVAL => 1, VALTYPE => 'scalar'},
 	xaxis =>{VAR => 'XAxis', VAL => 1, VALTYPE => 'bool'},
 	noxaxis =>{VAR => 'XAxis', VAL => 0, VALTYPE => 'bool'},
 	yaxis =>{VAR => 'YAxis', VAL => 1, VALTYPE => 'bool'},
 	noyaxis =>{VAR => 'YAxis', VAL => 0, VALTYPE => 'bool'},
 	lattice =>{VAR => 'TriHexDraw', VAL => 1, VALTYPE => 'bool'},
-	key =>{VAR => 'DrawKey', VAL => 1, VALTYPE => 'bool'},
+	key =>{VAR => 'DrawKey', VAL => 1, VALTYPE => 'bool',
+              HELP => ' (nokey) enables (disables) drawing the plot key (color to value key).'},
 	nokey =>{VAR => 'DrawKey', VAL => 0, VALTYPE => 'bool'},
+        keywidth =>{VAR => 'KeyWidth', OPTVAL => 1,
+              HELP => ' sets the width of the plot key as a fraction of the plot width.' },
+        keyheight =>{VAR => 'KeyHeight', OPTVAL => 1},
+        keyxoffset =>{VAR => 'KeyXOffset', OPTVAL => 1},
+        keyyoffset =>{VAR => 'KeyYOffset', OPTVAL => 1},
+        keyexpraise =>{VAR => 'KeyExpRaise', OPTVAL => 1},
+#	 'keywidth:f','keyheight:f','keyxoffset:f','keyyoffset:f'
 	showraw =>{VAR => 'ShowNormalized', VAL => 0, VALTYPE => 'bool'},
 	shownorm =>{VAR => 'ShowNormalized', VAL => 1, VALTYPE => 'bool'},
 	rotylabel =>{VAR => 'RotateYAxisLabel', VAL => 1, VALTYPE => 'bool'},
@@ -1377,8 +1621,10 @@ EOSHH
 	eps =>{VAR => 'PSFormat', VAL => '"eps"', VALTYPE => 'scalar', SETSUB=> \&change_ps_suffix},
 	ps =>{VAR => 'PSFormat', VAL => '"ps"', VALTYPE => 'scalar', SETSUB=>  \&change_ps_suffix},
 	usepower =>{VAR => 'DataNorming', VAL => '"power"', VALTYPE => 'scalar'},
-	explim =>{VAR => 'ExponentLimit', OPTVAL => 1 , VALTYPE => 'scalar'},
-	keydigits =>{VAR => 'KeyDigits', OPTVAL => 1 , VALTYPE => 'scalar'},
+	explim =>{VAR => 'ExponentLimit', OPTVAL => 1 , VALTYPE => 'scalar',
+         HELP=>' sets the largest power of ten to write in normal, rather than scientific notation in they key.'},
+	keydigits =>{VAR => 'KeyDigits', OPTVAL => 1 , VALTYPE => 'scalar',
+                 HELP=>' sets how many digits to print to right of decimal in floating point numbers in they key.'},
 	uselinear =>{VAR => 'DataNorming', VAL => '"linear"', VALTYPE => 'scalar'},
 	plotwidth =>{VAR => 'PlotWidth', OPTVAL => 1, UNIT => 'inches' },
 	title =>{VAR => 'Title', OPTVAL => 1, VALTYPE=>'string'},
@@ -1386,12 +1632,17 @@ EOSHH
 	xlabel =>{VAR => 'XAxisLabel', OPTVAL => 1, VALTYPE=>'string'},
 	ylabel =>{VAR => 'YAxisLabel', OPTVAL => 1, VALTYPE=>'string'},
 	sidelength =>{VAR => 'LengthOfSide', OPTVAL => 1}, # this may be overwritten by square and tri. fix it
+	xsidelength =>{VAR => 'XLengthOfSide', OPTVAL => 1},
+	ysidelength =>{VAR => 'YLengthOfSide', OPTVAL => 1},
 	saturation =>{VAR => 'Saturation', OPTVAL => 1},
 	brightness =>{VAR => 'Brightness', OPTVAL => 1},
 	hue =>{VAR => 'Hue', OPTVAL => 1},
-	xbuf =>{VAR => 'Xbuf', OPTVAL => 1, UNIT => 'times plot width'},
-	ybuf =>{VAR => 'Ybuf', OPTVAL => 1, UNIT => 'times plot height'},
-	numbars =>{VAR => 'NumKeyBars', OPTVAL => 1},
+	xbuf =>{VAR => 'Xbuf', OPTVAL => 1, UNIT => 'times plot width', SETSUB=> \&compute_buffers_on_frame},
+	ybuf =>{VAR => 'Ybuf', OPTVAL => 1, UNIT => 'times plot height',SETSUB=> \&compute_buffers_on_frame},
+	buf => [ {VAR => 'Xbuf', OPTVAL => 1, UNIT => 'times plot width'},
+		 {VAR => 'Ybuf', OPTVAL => 1, UNIT => 'times plot height',SETSUB=> \&compute_buffers_on_frame}],
+	keynbars =>{VAR => 'NumKeyBars', OPTVAL => 1},
+	keylabelskip =>{VAR => 'KeyLabelSkip', OPTVAL => 1},
 	cmhi =>{VAR => 'ColorMapHi', OPTVAL => 1},
 	cmlo =>{VAR => 'ColorMapLo', OPTVAL => 1},
 	latticegray =>{VAR => 'LatticeGray', OPTVAL => 1},
@@ -1409,6 +1660,7 @@ EOSHH
 	ticklabeloffset =>{VAR => 'TickLabelOffset', OPTVAL => 1},
 	polylinew =>{VAR => 'PolyLineWScale', OPTVAL => 1},
 	framelinew =>{VAR => 'FrameLineWScale', OPTVAL => 1},
+	keylinew =>{VAR => 'KeyLineWScale', OPTVAL => 1},
 	axislinew =>{VAR => 'AxisLineWScale', OPTVAL => 1},
         ticklinew =>{VAR => 'TickLineWScale', OPTVAL => 1},
 	ticklength =>{VAR => 'TickLengthScale', OPTVAL => 1},
@@ -1416,13 +1668,24 @@ EOSHH
 	keyfontscale =>{VAR => 'KeyFontScale', OPTVAL => 1},
 	axisfontscale =>{VAR => 'AxisFontScale', OPTVAL => 1},
 	numberpolyfontscale =>{VAR => 'NumberPolyFontScale', OPTVAL => 1},
-	exponentfontscale =>{VAR => 'ExponentScale', OPTVAL => 1},
+	exponentfontscale =>{VAR => 'ExponentScale', OPTVAL => 1,
+            HELP=>' sets a scale factor that gives the size of characters in the exponents relative to the size of the characters in the mantissa.'},
 	grided => [ {VAR => 'GridDataFile', VAL => 1, VALTYPE => 'bool'},
 		    {VAR => 'AutoLength', VAL => 0, VALTYPE => 'bool'} ],
 	nogrided =>  {VAR => 'GridDataFile', VAL => 0, VALTYPE => 'bool'},
-	viewerpid =>{VAR => 'ViewerPid', OPTVAL => 1}
+	viewerpid =>{VAR => 'ViewerPid', OPTVAL => 1},
+	font => { VAR => 'Font', OPTVAL => 1, VALTYPE => 'string', DEFER => 1, SETSUB=> \&choose_font_names}
 	
-);
+);  # end our %OptHandlers = (
+
+our @HelpTopics;
+foreach my $okey (keys %OptHandlers) {
+    my $hand = $OptHandlers{$okey}; # h is the handler for option $key
+    $hand = [$hand] unless ref($hand) eq 'ARRAY'; # put single handler in an array
+    	foreach my $h (@$hand) {
+	    push( @HelpTopics,$okey) if exists $h->{HELP};
+	}
+}
 
 # print all parameters, optionally, those matching $pat
 sub print_all_parameters {
@@ -1506,11 +1769,16 @@ sub first_process_command_line_options {
 			if (exists $h->{DOUNDEF}) { # no arg undefines value
 			    $oval = 'undef' if $oval =~ /^\s*$/;
 			}
-			deb ($opth{$key});
 			if ( exists $h->{OPTDEFAULT} and $opth{$key} eq '') {
 			    $oval = $h->{OPTDEFAULT};
 			}
-			my $setst = '$'.$var . " = " . $oval;
+			my $setst;
+			if (exists $h->{DEFER} ){
+			    $setst = '$OptionArg  = ' . $oval;
+			}
+			else {
+			    $setst = '$'.$var . " = " . $oval;
+			}
 			eval $setst;
 		    }
 		    if (exists $h->{SETSUB}) {
@@ -1553,24 +1821,7 @@ sub process_command_line_options {
     my (%h) = @_;
     verbose "processing command line options";
     if ( exists $h{h} ) {
-# The following uses a Pod parser to read this script and translate the Pod to
-# text. Then blank lines are stripped and only the OPTIONS (between OPTIONS and REQUIREMENTS section
-# are printed.
-	print $shorthelp;
-	my $outst;
-	my $parser = Pod::Simple::Text->new();
-	$parser->output_string( \$outst );
-	$parser->parse_file($ScriptName);
-	my @lines  = split("\n",$outst);
-	my $flag = 0;
-	foreach (@lines) {
-	    if (/^OPTIONS/) {  $flag = 1; next;}
-	    last if /^REQUIREMENT/;
-	    if ($flag == 1 && not /^\s*$/ ) {
-		print $_,"\n";
-	    }
-	}
-	iexit(0);
+	show_short_help();
     }
     if ( exists $h{generatetest} ) { setup_example_plots();run_tests(1); }
     if ( exists $h{test} ) {setup_example_plots(); run_tests(0); }
@@ -1579,15 +1830,7 @@ sub process_command_line_options {
 	iexit(0);
     }
     if ( exists $h{man}  ){
-	my $res = `pod2man --help 2>&1 `;
-        if ( defined $res and $res =~ /Usage/ ) {
-	    system "pod2man $ScriptName | man -l - ";
-	    iexit(0);
-	}
-	else {
-	    print STDERR "Can't find helper program pod2man (broken perl installation?)\n";
-	    iexit(0);
-	}
+	show_man_page();
     }
     if ( exists $h{mandoc}  ){
 	my $res = `pod2man --help 2>&1 `;
@@ -1639,17 +1882,7 @@ sub process_command_line_options {
 	}
     }
     if ( exists $h{html}  ){
-	my $res = `pod2html --help 2>&1 `;
-        if ( defined $res and $res =~ /Usage/ ) {
-	    verbose "pod2html --outfile=tridens.html  $ScriptName ";
-	    system "pod2html --outfile=tridens.html  $ScriptName ";
-	    system "$Browser tridens.html&";
-	    iexit(0);
-	}
-	else {
-	    print STDERR "Can't find helper program pod2html (broken perl installation?)\n";
-	    iexit(0);
-	}
+	show_html_page();
     }
     if ( exists $h{paramfile} ) {
 	verbose("Writing parameter file '$Initfilename'");
@@ -1661,14 +1894,18 @@ sub process_command_line_options {
     if ( exists $h{listcolors} ) {
 	setup_rgb_codes();
 	my $n = 4;
-	$n = $h{listcolors} if $h{listcolors} > 0;
+	$n = $h{listcolors} if  $h{listcolors} ne '' and $h{listcolors} > 0;
 	print_codes_columns(\@RgbNames,$n);
+	iexit(0);
+    }
+    if ( exists $h{listfonts} ) {
+	print_codes_columns([keys %FontList],4);
 	iexit(0);
     }
     if ( exists $h{listsymbols} ) {
 	setup_symcodelist();
 	my $n = 4;
-	$n = $h{listsymbols} if $h{listsymbols} > 0;
+	$n = $h{listsymbols} if $h{listsymbols} ne '' and $h{listsymbols} > 0;
 	print_codes_columns(\@Symcodelist,$n);
 	print "\nAliases from Latex to some symbols:\n";
 	print_codes_columns(\@Symaliaslist,$n);
@@ -1705,8 +1942,8 @@ sub process_command_line_options {
     if ( exists $h{ex} ) {
 	$ExampleNumber = $h{ex};
     }
-    if ( exists $h{exall} ) {
-	$DoAllExamples = $h{exall};
+    if ( exists $h{demo} ) {
+	$DoAllExamples = $h{demo};
     }
     if ( exists $h{display} ) {
 	$Display = $TRUE;
@@ -1724,13 +1961,13 @@ sub process_command_line_options {
 	$RunShell = $TRUE;
     }
     if ( (not defined $Infile or $Infile eq '') and not (exists $h{ex}  or exists $h{i} or exists $h{batch} 
-							 or exists $h{exall} or $RunShell == $TRUE) ){
+							 or exists $h{demo} or $RunShell == $TRUE) ){
 #	print STDERR "No input file specified; try option $ScriptName -h for help.\n";
 #	exit(1);
 	$RunShell = $TRUE; # now go straight to interactive mode.
     }
-}
-}
+  } # end  sub process_command_line_options {
+}  # end initialization block
 
 
 # END Process Commandline Options
@@ -1824,6 +2061,62 @@ sub herror {
     iexit(1);
 }
 
+sub strip_spaces {
+    my ($s) = @_;
+    $s =~ s/^\s+//;
+    $s =~ s/\s+$//;
+    $s;
+}
+
+
+sub show_short_help {
+# The following uses a Pod parser to read this script and translate the Pod to
+# text. Then blank lines are stripped and only the OPTIONS (between OPTIONS and REQUIREMENTS section
+# are printed.
+	print $ShortHelp;
+	my $outst;
+	my $parser = Pod::Simple::Text->new();
+	$parser->output_string( \$outst );
+	$parser->parse_file($ScriptName);
+	my @lines  = split("\n",$outst);
+	my $flag = 0;
+	foreach (@lines) {
+	    if (/^OPTIONS/) {  $flag = 1; next;}
+	    last if /^REQUIREMENT/;
+	    if ($flag == 1 && not /^\s*$/ ) {
+		print $_,"\n";
+	    }
+	}
+	iexit(0);
+}
+
+sub show_man_page {
+    my $res = `pod2man --help 2>&1 `;
+    if ( defined $res and $res =~ /Usage/ ) {
+	system "pod2man $ScriptName | man -l - ";
+	iexit(0);
+    }
+    else {
+	print STDERR "Can't find helper program pod2man (broken perl installation?)\n";
+	iexit(0);
+    }
+}
+
+sub show_html_page {
+	my $res = `pod2html --help 2>&1 `;
+        if ( defined $res and $res =~ /Usage/ ) {
+	    verbose "pod2html --outfile=tridens.html  $ScriptName ";
+	    system "pod2html --outfile=tridens.html  $ScriptName ";
+	    system "$Browser tridens.html&";
+	    iexit(0);
+	}
+	else {
+	    print STDERR "Can't find helper program pod2html (broken perl installation?)\n";
+	    iexit(0);
+	}
+}
+
+
 #  initialize()  Read parameters from the files .tridens
 #    and infilename.p and eval the perl code therein.
 sub initialize {
@@ -1841,6 +2134,7 @@ sub initialize {
     }
     $Pi = 4*atan(1);
     $E = exp(1.0);
+    setup_font_list();
 }
 
 # set_polygon_params() Some parametes set by the user
@@ -1932,6 +2226,7 @@ sub read_data_inner {
     open INH , "<$file" or herror "Can't open '$file' for reading.";
     while (<INH>) {
 	next if /^\s*[\#\;\%\!]/;  # skip comments
+	next if /^\s*$/; # skip blank lines
 	s/^\s*//;
 	@nums = split(/[^\.eE\d\+\-]+/, $_);
 	if ( scalar(@nums) < 3 ) {
@@ -1989,10 +2284,14 @@ sub read_data {
     $max_v = undef;
     $min_v = undef;
     my $min_dist = -1;
+    my $xmin_dist = -1;
+    my $ymin_dist = -1;
     my $dist;
     @Xs = @Ys = @V = ();
-    $XBlo = $XBhi = $YBlo = $YBhi = 0;
-    $Xlo = $Xhi = $Ylo = $Yhi = 0;
+# Following two lines were here in version 0.16, but they are clearly wrong.
+# Remove them and see if it breaks something.
+    $XBlo = $XBhi = $YBlo = $YBhi = undef;
+    $Xlo = $Xhi = $Ylo = $Yhi = undef;
     if ($GridDataFile == 1) {
 	read_data_inner_grid($file);
     }
@@ -2003,9 +2302,22 @@ sub read_data {
     }
     for($i=0;$i<@Xs;$i++) {
 	if ( $AutoLength == 1 and $i != 0 ) {
-	    $dist = ($Xs[0]-$Xs[$i])*($Xs[0]-$Xs[$i]) + ($Ys[0]-$Ys[$i])*($Ys[0]-$Ys[$i]);
-	    if (  $dist < $min_dist  or  $min_dist == -1 ) {
-		$min_dist = $dist;
+	    if ($SameUnits == $TRUE ) {
+		$dist = ($Xs[0]-$Xs[$i])*($Xs[0]-$Xs[$i]) + ($Ys[0]-$Ys[$i])*($Ys[0]-$Ys[$i]);
+		if (  $dist < $min_dist  or  $min_dist == -1 ) {
+		    $min_dist = $dist;
+		}
+	    }
+	    else {
+		$dist = abs($Xs[0]-$Xs[$i]);
+		if ( $dist > 0 and  ($dist < $xmin_dist or  $xmin_dist == -1) ) {
+		    $xmin_dist = $dist;
+		    verbose("setting xmin $dist ->  $xmin_dist at i=$i");
+		}
+		$dist = abs($Ys[0]-$Ys[$i]);
+		if ( $dist > 0 and  ($dist < $ymin_dist  or  $ymin_dist == -1) ) {
+		    $ymin_dist = $dist;
+		}
 	    }
 	}
 	$sum += $V[$i];
@@ -2024,11 +2336,23 @@ sub read_data {
 	$max_v = $V[$i] if $V[$i] > $max_v;
 	$min_v = $V[$i] if $V[$i] <  $min_v;
     }
+    if ( $SameUnits == $TRUE and $min_dist <=  0 ) {
+	herror( "Can't find distance between points automatically");
+	iexit(0);
+    }
+    verbose("got Xlo=$Xlo, Xhi=$Xhi, Ylo=$Ylo, Yhi=$Yhi");
     if ( $AutoLength == 1) {
-	verbose "Nearest neighbor distance is " . sqrt($min_dist) ;
-#	print STDERR "distance is " . sqrt($min_dist) . "\n";
 	if ( $NumberOfSides == 4 ) {
-	    $LengthOfSide = sqrt($min_dist);
+	    if ( $SameUnits == $TRUE ) {
+		$LengthOfSide = sqrt($min_dist);
+	    }
+	    else {
+		$LengthOfSide = $xmin_dist;
+		$XLengthOfSide = $xmin_dist;
+		$YLengthOfSide = $ymin_dist;
+		verbose "X Nearest neighbor distance is " . $xmin_dist ;
+		verbose "Y Nearest neighbor distance is " . $ymin_dist ;
+	    }
 	}
 	elsif ( $NumberOfSides == 6 ) {
 	    $LengthOfSide = sqrt($min_dist) * 1/sqrt(3);
@@ -2040,6 +2364,11 @@ sub read_data {
 	    $LengthOfSide = sqrt($min_dist) * 1/sqrt(3);
 	}
     }
+    if ( $SameUnits == $TRUE ) {
+	verbose "Nearest neighbor distance is " . sqrt($min_dist) ;
+	$XLengthOfSide = $LengthOfSide;
+	$YLengthOfSide = $LengthOfSide;
+    }
     verbose "sum of data values $sum";
 
 # Allow for width of hexes on edge
@@ -2047,10 +2376,10 @@ sub read_data {
 #    $Ylo--;
 #    $Xhi++;
 #    $Yhi++;
-    $Xlo -= $LengthOfSide;
-    $Ylo -= $LengthOfSide;
-    $Xhi += $LengthOfSide;
-    $Yhi += $LengthOfSide;
+    $Xlo -= $XLengthOfSide;
+    $Ylo -= $YLengthOfSide;
+    $Xhi += $XLengthOfSide;
+    $Yhi += $YLengthOfSide;
 
     
 # override with  user supplied values if defined.
@@ -2059,17 +2388,26 @@ sub read_data {
     $Xhi =  $Xmax if defined $Xmax;
     $Yhi =  $Ymax if defined $Ymax;
 
+    compute_buffers_on_frame();
+    $HaveData = $TRUE;
+    verbose "Finished reading data";
+
+    return 1;
+}  # end read_data()
+
+sub compute_buffers_on_frame {
 # add a bit of a buffer to data plotting area at 
 # which frame will be drawn. So positions of text,
 # etc will be drawn relative this expanded rectangle
-    $XBlo = $Xlo - ($Xhi-$Xlo)*$Xbuf ;
-    $XBhi = $Xhi + ($Xhi-$Xlo)*$Xbuf ;
-    $YBlo = $Ylo - ($Yhi-$Ylo)*$Ybuf ;
-    $YBhi = $Yhi + ($Yhi-$Ylo)*$Ybuf ;
-    $HaveData = $TRUE;
-    verbose "Finished reading data";
-    return 1;
-}  # end read_data()
+    if (defined $Xlo and defined $Xhi ) {
+	$XBlo = $Xlo - ($Xhi-$Xlo)*$Xbuf ;
+	$XBhi = $Xhi + ($Xhi-$Xlo)*$Xbuf ;
+    }
+    if (defined $Ylo and defined $Yhi ) {
+	$YBlo = $Ylo - ($Yhi-$Ylo)*$Ybuf ;
+	$YBhi = $Yhi + ($Yhi-$Ylo)*$Ybuf ;
+    }
+}
 
 
 sub do_norming {
@@ -2220,7 +2558,7 @@ sub setup_example_plots {
        { FILE => 'tr1.dat', ARGS => '-tri -axis -title \'Axes\'' },
        { FILE => 'tr1.dat', ARGS => '-tri -fontscale 2 -title \'Fontscale 2\'' },
        { FILE => 'tr1.dat', ARGS => '-tri -fontscale 2 -bbpad 30 -title \'Fontscale 2 and bbpad 30 \'' },
-       { FILE => 'tr1.dat', ARGS => '-tri -explim 3  -keydigits 4 -title \'No scientific notation in key\'' },
+       { FILE => 'tr1.dat', ARGS => '-tri -explim 10  -keydigits 4 -title \'No scientific notation in key\'' },
        { FILE => 'tr1.dat', ARGS => '-tri -xbuf .2 -ybuf .2  -title \'X and Y buffers big\'' },
        { FILE => 'tr1.dat', ARGS => '-tri -xbuf 0 -ybuf 0  -title \'X and Y buffers small\'' },
        { FILE => 'tr1.dat', ARGS => '-tri -polyborder  -title \' -polyborder\'' },
@@ -2488,7 +2826,7 @@ EOBATCH1
 
 # old    { IN => { COM => "$td" }, OUT => { MATCH => "No input file specified; try option" }},
     my @tests = (
-    { IN => { COM => "$td -version" }, OUT => { MATCH => "tridens 0.015" }},
+    { IN => { COM => "$td -version" }, OUT => { MATCH => "tridens 0.017" }},
     { IN => { COM => "$td -h" }, OUT => { FILE => 'test_help_out' }},
     { IN => { COM => "$td -batch batch1"}, OUT => { 
 	BATCH => $batchfile1, 
@@ -2635,6 +2973,7 @@ sub pshex {
     my ($cx,$cy,$g) = @_;
     my $string;
     $string = sprintf("%f %.4e %.4e pd\n",$g,$cx,$cy);
+    $string =~ s/([\.1-9]+)0+(\D)/$1$2/g; # strip trailing zeros for efficiency
     return $string;
 }
 
@@ -2782,12 +3121,15 @@ sub  make_key_color_boxes {
 	$kb[$i] = inv_norm_linear($kb[$i]) if $ShowNormalized != 1;
 #	print "col $kc[$i], val $kb[$i]\n";
     }
-
     $s = "gsave\n";
     for($i=0;$i<$NumKeyBars;$i++) {
-        $val = sprintf("%.10e",$kb[$i]);
+	$val = '';
+#        $val = sprintf("%.10e",$kb[$i]);
 #	$val = format_real($kb[$i]);
-	$val = real_show($kb[$i]);
+	$val = real_show($kb[$i]) if $i % $KeyLabelSkip == 0;
+# To move text left side of key, we need to know its width.
+# For this, we need a routine like drawscinot that computes the
+# text width and pushes it on the stack.
 	$s .=  <<"EOK"
  keyxpos keyypos $i keybarheight mul add moveto	
  0 keybarheight rlineto
@@ -2798,10 +3140,11 @@ sub  make_key_color_boxes {
  gsave
  fill
  grestore
- 0 setgray stroke
+% $KeySepGray setgray stroke
  newpath
  keyxpos keywidth 1.2 mul add 
  keyypos $i .2 add keybarheight mul add moveto
+ 0 setgray
  $val
 EOK
   }    
@@ -2850,7 +3193,7 @@ sub make_title {
     my $boldsubfont = "Boldsub";
     my $bolditalicsubfont = "BoldItalicsub";
     my $subsymfont = "MainSubSym";
-    my @fontlist;
+    my @fontlist; # not used ?!
     my %fontnums;
 
     my $fontsize;
@@ -2888,7 +3231,7 @@ parenleftbt bracketlefttp bracketleftex bracketleftbt bracelefttp braceleftmid b
 integral integraltp integralex integralbt parenrighttp parenrightex parenrightbt bracketrighttp bracketrightex
  bracketrightbt bracerighttp bracerightmid bracerightbt );
 
-# aliases from some latex symbol names to adobe symbol font names
+# aliases from some latex symbol names to Adobe symbol font names
 @Symaliaslist = qw (otimes oplus leftarrow rightarrow leftrightarrow
     langle rangle cup cap pm mp ge le );
 
@@ -3100,11 +3443,83 @@ bracerightmid => '375',
 bracerightbt => '376',
 );
 
+# probably others should be added here.
+sub setup_font_list {
+    %FontList = (
+	'bookman' => [qw( Bookman-Light
+                          Bookman-LightItalic 
+                          Bookman-Demi
+                          Bookman-DemiItalic)],
+       'courier' => [qw(
+                        Courier
+                        Courier-Oblique
+                        Courier-Bold
+                        Courier-BoldOblique)],
+        'helvetica'=> [ qw(
+                  Helvetica
+                  Helvetica-Oblique
+                  Helvetica-Bold
+                  Helvetica-BoldOblique)],
+	'helvetica-narrow' => [ qw(
+               Helvetica-Narrow
+               Helvetica-Narrow-Oblique
+               Helvetica-Narrow-Bold
+               Helvetica-Narrow-BoldOblique)],
+	'palatino' => [qw(
+              Palatino-Roman
+              Palatino-Italic
+              Palatino-Bold
+              Palatino-BoldItalic)],
+	'newcenturyschlbk' => [qw(
+               NewCenturySchlbk-Roman
+               NewCenturySchlbk-Italic
+               NewCenturySchlbk-Bold
+               NewCenturySchlbk-BoldItalic)],
+	'times' => [qw(
+                     Times-Roman
+                     Times-Italic
+                     Times-Bold
+                     Times-BoldItalic )],
+         'charter' => [qw(
+                  Charter-Roman Charter-Italic  Charter-Bold Charter-BoldItalic
+               )],
+         'utopia' => [qw( Utopia-Regular Utopia-Italic Utopia-Bold Utopia-BoldItalic)],
+	'arial' => ['Arial', 'Arial,Italic', 'Arial,Bold',  'Arial,BoldItalic'],
+	'timesnewroman' => ['TimesNewRoman','TimesNewRoman,Italic',
+                           'TimesNewRoman,Bold','TimesNewRoman,BoldItalic' ]
+#         '' => [qw(
+#
+#               )],
+	);
+}
+
+# set the four standard fonts from the list above.
+sub choose_font_names {
+    my $name = $OptionArg;
+    my @names = sort keys %FontList;
+    my $fonts;
+    my $outname = '';
+    foreach (@names) {
+	if (/^$name/) {
+	    $outname = $_;
+	    last;
+	}
+    }
+    if ($outname eq '') {
+	herror("Unknown font name '$name'");
+	return;
+    }
+    $Font = $outname;
+    my $f = $FontList{$outname};
+    ($PlainFontname,$ItalicFontname,$BoldFontname,$BoldItalicFontname) = @$f;
+    return $Font;
+}
+
    
 sub setup_mixed_fonts {
     my $boxwidth = $XBhi - $XBlo;
 
-    $basefontname = $Fontname;
+    $basefontname = $PlainFontname;
     $fontsize = $FontScale * .04 * $boxwidth; # main font size
     
 # fontcodes and scriptcodes only mark that they exist. RgbCodes gives
@@ -3753,7 +4168,8 @@ sub make_font_declarations {
     return  $topstring;
 }
 
-
+# apparantly take a string with escape codes and return  a list
+# of text with hash keys representing the escape codes.
 sub parse_text_string {
     my $string = shift;
     my @textpieces = ();
@@ -3782,7 +4198,7 @@ sub parse_text_string {
 	    elsif ( exists $Symcodes{$1} ) {
 		push @textpieces, { SYM => $1 };		
 	    }
-	    elsif ( exists $Symaliases{$1} ) { # put the adobe code in place of the alias
+	    elsif ( exists $Symaliases{$1} ) { # put the Adobe code in place of the alias
 		push @textpieces, { SYM => $Symaliases{$1} };		
 	    }
 	    else {
@@ -3973,6 +4389,7 @@ my ($prolog,$data,$yticks,$xticks,$title,$axes,$xlabel,$ylabel) =
 
 # These postscript commands are interspersed in the prolog.
 sub create_interspersed_postscript {
+    $keycolorboxes_com = $drawkey_com = '';
     $keycolorboxes_com = make_key_color_boxes() if $DrawKey == 1;
     $drawkey_com = 'drawkey' if $DrawKey == 1;
     if ( $TriHexDraw ==  1 or  $TriHexDraw ==  2) {
@@ -3983,6 +4400,9 @@ sub create_interspersed_postscript {
     }
     if ( $LandScape == 1) {
 	$landscape_com = make_landscape_com();
+    }
+    else {
+	$landscape_com = '';
     }
     $font_declarations_com = make_font_declarations(); 
 }
@@ -3999,11 +4419,13 @@ sub create_post_prolog_strings {
     $data = make_data_postscript(); 
     $yticks = make_yticks();
     $xticks = make_xticks();
+    $title = ''; # in case it has been set once
     $title = make_title() if defined $Title and  $Title ne '';
     $axes = draw_axes();
+    $xlabel = '';
     $xlabel = print_centeredx($YBlo - ($boxwidth*$XAxisLabelOffset*$FontScale),($XBlo+$XBhi)/2, 
 			      $XAxisLabel) if$XAxisLabel ne '';
-
+    $ylabel = '';
     if ($YAxisLabel ne '') {
 	if ($RotateYAxisLabel == 1) {
 #	    $ylabel = "($YAxisLabel) drawYaxislabelRotated" 
@@ -4178,7 +4600,10 @@ sub write_output {
 
 #========================================================
 # Print the PostScript Prolog and topmatter. This is the 
-# bulk of the generated PostScript code. The
+# bulk of the generated PostScript code.
+# I include perl style comments (beginning with #) within the string.
+# These are stripped out at the end of this routine. The could have been
+# PS comments with %, but why write them into the output file?
 sub make_prolog {
 
   my ($keycolorboxes_com,
@@ -4223,6 +4648,8 @@ $landscape_com
 
 % length in plot units of poly side
 /polysidelength $LengthOfSide def
+/xpolysidelength $XLengthOfSide def
+/ypolysidelength $YLengthOfSide def
 % how much to rotate polygons
 /polyrotation $Rotation def
 /polyrotationtwo $Rotation2 def
@@ -4236,6 +4663,7 @@ $landscape_com
 % and fonts
 /polylinescale $PolyLineWScale def
 /framelinescale $FrameLineWScale def
+/keylinescale $KeyLineWScale def
 /ticklinescale $TickLineWScale def
 /ticklengthscale $TickLengthScale def
 /tickfontscale $TickFontScale $FontScale mul def
@@ -4274,8 +4702,9 @@ $landscape_com
 % units. We will rescale so that ps units are physical units
 /polyscale plotwidth framewidth div  def
 
+% looks like plotheight is not used
 /plotheight ybhi yblo  sub  xbhi xblo sub div
-           plotwidth mul def
+           plotwidth mul  def
 % center of frame around plot in inches, relative
 % to the origin for plotting data.
 /ycent ybhi yblo add 2 div polyscale mul def
@@ -4286,7 +4715,8 @@ $landscape_com
 pagewidth 2 div  xcent sub pageheight 2 div  ycent sub translate
 
 /polylinewidth 1 20 div polylinescale mul def
-/framelinewidth .002 bw framelinescale mul def
+/framelinewidth .001 bw framelinescale mul def
+/keylinewidth .0025 bw keylinescale mul def
 /axislinewidth .002 bw $AxisLineWScale mul def
 /ticklinewidth .002 bw ticklinescale mul def
 /ticklength .01 bw  ticklengthscale mul def
@@ -4297,10 +4727,11 @@ pagewidth 2 div  xcent sub pageheight 2 div  ycent sub translate
 
 
 $font_declarations_com
-/ticklabelfont /$Fontname  findfont tickfontheight scalefont def 
-/keyfont /$Fontname  findfont keyfontheight scalefont def 
-/axislabelfont /$Fontname findfont axislabelfontheight scalefont def
-/numberpolyfont /$Fontname  findfont numberpolyfontheight scalefont def 
+/ticklabelfont /$PlainFontname  findfont tickfontheight scalefont def 
+/keyfont /$PlainFontname  findfont keyfontheight scalefont def 
+/keysymfont /Symbol  findfont keyfontheight scalefont def 
+/axislabelfont /$PlainFontname findfont axislabelfontheight scalefont def
+/numberpolyfont /$PlainFontname  findfont numberpolyfontheight scalefont def 
 
 % x point font is actually shorter than x points.
 % dividing by this gives approximate height
@@ -4359,13 +4790,14 @@ $font_declarations_com
 } def
 
 % This draws the polygon
+% This is the favored routine.
 /pd {
     /pcy exch def
     /pcx exch def    
     gsave
     newpath
     pcx pcy moveto % move to center of poly
-    polysidelength polysidelength  scale
+    xpolysidelength ypolysidelength  scale
     polyrotation rotate	
     whichpoly  % add poly sides to path
     closepath
@@ -4601,7 +5033,7 @@ $font_declarations_com
     dup   % label
     stringwidth pop
     neg 2 div   rtickfontheight neg 
-          ticklabeloffset sub  rmoveto
+    ticklabeloffset sub  rmoveto
 %    neg 2 div   0  rmoveto
     show  % pop label
     grestore
@@ -4682,7 +5114,7 @@ $font_declarations_com
   /TextScale exch def
   gsave
   0 setgray
-  /$Fontname findfont .04 bw TextScale mul  scalefont setfont
+  /$PlainFontname findfont .04 bw TextScale mul  scalefont setfont
   newpath
   xbhi xblo add  2 div
   yblo Position bh add
@@ -4738,8 +5170,37 @@ $font_declarations_com
  grestore
 } def
 
-
+# Draw a number in scientific notation.
+# Uses a multiplication symbol from the symbol font
 /drawscinot {
+  /exponent exch def
+  /mantissa exch def
+  (A) stringwidth pop
+  /charsh exch 0 mul def
+  mantissa show 
+  ( ) show
+  keysymfont setfont
+  (\264) show
+  keyfont setfont
+  ( ) show
+  charsh  .4 rkeyfontheight mul rmoveto 
+  gsave 1.5 1.5 scale 
+  grestore
+  0  -.4 rkeyfontheight mul rmoveto 
+  charsh 2 div 0 rmoveto (10) show
+%  mantissa stringwidth pop
+%  .8 rfontheight mul rmoveto
+  0  $KeyExpRaise rkeyfontheight mul rmoveto
+  gsave   
+  $ExponentScale $ExponentScale scale
+  exponent show
+  grestore
+} def
+
+# This draws the same but with a dot for multiplication.
+# This should be an optional alternate, but is simply not
+# used right now.
+/drawscinotdot {
   /exponent exch def
   /mantissa exch def
   (A) stringwidth pop dup
@@ -4755,7 +5216,7 @@ $font_declarations_com
   charsh 2 div 0 rmoveto (10) show
 %  mantissa stringwidth pop
 %  .8 rfontheight mul rmoveto
-  0  .6 rkeyfontheight mul rmoveto
+  0  $KeyExpRaise rkeyfontheight mul rmoveto
   gsave   
   $ExponentScale $ExponentScale scale
   exponent show
@@ -4764,7 +5225,6 @@ $font_declarations_com
 
 /keywidth $KeyWidth bw  def
 /keyheight frameheight $KeyHeight mul def
-/keylinewidth framelinewidth def
 /numkeybars $NumKeyBars def
 
 /keybarheight keyheight numkeybars div def
@@ -4802,6 +5262,9 @@ ticklabelfont setfont
 
 
 TOPEOL
+
+# strip perl comments
+$string =~ s/\n(#[^\n]*\n)+/\n/g;
 
 return $string;
 }  # end sub make_prolog
@@ -5242,11 +5705,22 @@ sub make_viewer_opts {
 
 sub launch_viewer {
     my ($args) = @_;
+    if (not defined $args ) {
+	herror("No output file to view.");
+	return();
+    }
+    use POSIX 'WNOHANG';
+# Using SIG{CHLD}= IGNORE
+# causes pdf files to be rendered incorrectly with an error message (but not eps or ps)
+# Using the waitpid does not cause this problem. No idea why
+    $SIG{CHLD} = sub { while( waitpid(-1,WNOHANG)>0 ) {} };
+#    $SIG{CHLD} = 'IGNORE'; # prevent killed viewer proc from being 'defunct'
     my $pid = fork();
     die "unable to fork: $!" unless defined($pid);
     my $opts = make_viewer_opts();
     if (!$pid) {  # child
-	exec("$Viewer $opts $args");
+#	setsid or die "Can't start a new session: $!"; # does nothing.
+	exec("$Viewer $opts $args"); # no &, else we get pid of shell
 	die "unable to exec: $!";
     }
     $ViewerPid = $pid;
@@ -5255,6 +5729,8 @@ sub launch_viewer {
 
 sub signal_viewer {
     if (defined $ViewerPid) {
+	my $exists = kill( 0, $ViewerPid); # check if viewer killed somehow.
+	return unless $exists;
 	verbose "signaling viewer: kill -1 $ViewerPid";
 	system "kill -1 $ViewerPid";
     }
@@ -5288,9 +5764,18 @@ sub do_all_examples {
 
 sub check_viewer {
 #    print  "CHECKING VIEWWER!!\n";
+#    print "display $Display\n";
+#    print "nodisplay $NoDisplay\n";
+#    print "pid $ViewerPid\n";
+#    print "viewerstarted $ViewerStarted\n";
     if (((defined $Display and $Display == $TRUE) or 
-	    $RunShell == $TRUE) and (not defined $ViewerStarted or $ViewerStarted == $FALSE)
-	and  (not defined $NoDisplay or $NoDisplay == $FALSE)) {
+	 $RunShell == $TRUE) and  (not defined $NoDisplay or $NoDisplay == $FALSE)) {
+	if( defined $ViewerPid  and (
+          defined $ViewerStarted or (defined $ViewerStarted and $ViewerStarted == $FALSE))) {
+	    my $exists = kill( 0, $ViewerPid); # check if viewer killed somehow.
+#	    print "exists pid : $exists\n";
+	    return if $exists;
+	}
 	launch_viewer($Outfile);
 	$ViewerStarted = $TRUE;
     }

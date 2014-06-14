@@ -24,12 +24,15 @@ GNU General Public License for more details.
 
 package Tridens;
 
-our $VERSION = '0.18';
+our $VERSION = '0.19';
 # use POSIX module for log10 and floor functions
 use POSIX;
 use Pod::Simple::Text; # for processing the docs
 use Term::ReadLine;
 use Text::ParseWords;
+use Text::Wrap;
+use Data::Dumper;
+use Carp;
 
 #  use this to avoid failure of the entire program if a function is missing
 #use autouse MODULENAME;
@@ -59,16 +62,19 @@ use Text::ParseWords;
 #  * changed dot to x in sci notation
 #  * correctly detect if gv processs is killed
 # TODO
-# Aspect ratio is dependent on units. So this is useless unless
-# data is fortuitously in a range to make a nice plot!!
-# many arguments are not checked for sanity or correctness or existence.
-# Ability to save interactively set options. Use Dumper, I suppose.
-# catch ctrl c in demo mode
-# add ability to adjust sci notation numbers better.
-# add ability to write tick labels with numbers multiplied by powers
+# *  add ability to write tick labels with numbers multiplied by powers
 # of ten, so that the power of ten can be put into the label
-# also ability to to sci notation on the tick labels.
-
+# * also ability to to sci notation on the tick labels.
+# * lots of code cleaning: eg uses routines to check values (not 'xpdf' everywhere, etc.)
+# * generate help strings automatically
+# * saving and restoring not complete
+# * choosing viewer not settable easily
+# * docs out of date.
+# * number of labels on key should be selected, not the skip value
+# * completion with show, set, etc. needs improvment (remove useless completions
+#  etc. 
+# * optionally doing the /pd postscript routine in perl might make rendering to pdf faster
+# * send commands to xpdf, such as 'raise' upon plotting
 
 =begin comment
 
@@ -126,9 +132,7 @@ remainder of the data set.)
 a triangular lattice.
 
 =item 2 The method of producing plots is different from most
-other methods. The range of application of tridens is perhaps more
-limited, but it also produces results that are more desirable
-in some cases. For instance, gnuplot's pm3d can be applied
+other methods. For instance, gnuplot's pm3d can be applied
 in more cases, but produces an essentially different plot.
 
 =item 3 To produce PostScript plots, tridens requires only a
@@ -338,14 +342,19 @@ subroutine or variable with harmful results.
 
 =head3 Command line editing
 
-The up-arrow and down-arrow recall the previous and next command in the command
-history. Ctrl-p and Ctrl-n do the same thing. Command line editing is in the
-'emacs' style by default. That is ctrl-a goes to the beginning of the line. Ctrl-e
-to the end. ctrl-d deletes a character, etc. It is probably possible to change
-this somehow. When typing options to 'set' and 'show', you can press the tab
-key after typing only a few characters of a word to get tab-completion. All these
-editing features are part of the perl 'Readline' packages and may vary with or 
-be missing from your perl installation.
+The up-arrow and down-arrow recall the previous and next
+command in the command history. Ctrl-p and Ctrl-n do the
+same thing. Command line editing is in the 'emacs' style by
+default. That is ctrl-a goes to the beginning of the
+line. Ctrl-e to the end. ctrl-d deletes a character, etc. It
+is probably possible to change this somehow. You can press the tab while
+entering commands to display possible completions.
+All these editing features are part of the
+perl 'Readline' packages and may vary with or be missing
+from your perl installation. Full support is offered by the
+perl interface to gnu readine (Named something like
+libterm-readline-gnu-perl) is available in linux
+distributions.)
 
 =head2 Data file format
 
@@ -496,7 +505,7 @@ from file F<mytdata>. Size of hexagons computed automatically.
 
 Further examples of plots illustrating the use of various arguments can be generated using B<-ex> I<n>. For instance
 I<tridens -ex 2>  creates the second example plot. You can see the example plot immediately if you
-use I<tridens -display -ex 2>, provided the parameter I<$Viewer> is set to correctly launch a ps/pdf viewer.
+use I<tridens -display -ex 2>, provided the parameter I<$ViewerGvCmd> is set to correctly launch a ps/pdf viewer.
 Most of the example plots are not realistic examples, but rather tests of features.
 
 Using I<tridens -demo>, produces all the examples sequentially and launhces the viewer to view them,
@@ -626,8 +635,8 @@ sets the hue. The hue can also be set with B<-hue>
 B<-cmsaturation>  set color map to 'saturation' for density plot. An optional argument
 sets the hue.
 
-The following three parameters set any hsb values that are I<not> set by the color map
-chosen above. That is, B<-hue>, has no effect if B<-cmhue> is chosen, etc.
+The following three parameters set to a constant any hsb values that are I<not> mapped
+from the data via  the color map chosen above. That is, B<-hue>, has no effect if B<-cmhue> is chosen, etc.
 
 B<-hue>  I<SATURATION> (default 1) from 0 to 1
 
@@ -656,7 +665,7 @@ B<-power> I<POWER> (default value .5) power to use with -usepower
 
 B<-title> I<'The Title'>  plot title
 
-B<-offsettitle> I<FRAC> Fractional part of frame height by which title is separtated from
+B<-titleyoffset> I<FRAC> Fractional part of frame height by which title is separtated from
   frame. Ie, use this to move the title up and down.
 
 B<-xlabel> I<'the x label'>
@@ -741,7 +750,7 @@ B<-outfile> I<OUTNAME> write the plot to file I<OUTNAME> rather than the default
 a filename suffix (.ps,.eps,.pdf) to the input filename.
 
 B<-display> Launch external viewer if possible (ghostview by default). The command to launch
-the viewer is given by the $Viewer parameter.
+the viewer is given by the $ViewerGvCmd parameter.
 
 B<-nodisplay> Suppress launching viewer, even in interactive mode.
 
@@ -853,28 +862,92 @@ GNU General Public License for more details.
 # We must put this shell routine first lexically, if I want to use the 'our'
 # variables below in the main program
 package Shell;
-no strict 'vars';
+#no strict 'vars';  # maybe this is not needed ??
+
+sub TRUE () { 1 }
+sub FALSE () { 0 }
+
+sub deb {
+    my $s = shift;
+    print "$s\n";
+}
 
 sub run_shell {
     my $exit;
-    my $TRUE = $Tridens::TRUE;
-    my $FALSE = $Tridens::FALSE;
-    $Tridens::Display = $TRUE;
-    $Tridens::NoDisplay = $FALSE;
+    my $term = undef;
     use Getopt::Long;
     $E = 1; # only to stop warning
     $Pi = 1;
     $Pi = $Tridens::Pi;
     $E = $Tridens::E;
     my $showsub = sub {
-	    $Tridens::SettingOpts = $FALSE; 
+	    $Tridens::SettingOpts = FALSE; 
 	    @ARGV = Text::ParseWords::shellwords($_[0]);
 	    foreach (@ARGV) { $_ = '-' . $_ unless /^\-/;} # prepend dash
 	    my %h = (  );
-	    GetOptions( \%h, @Tridens::Optlist );
-	    Tridens::first_process_command_line_options(%h);
-	    Tridens::process_command_line_options(%h);return undef;
+	    GetOptions( \%h, @Tridens::OptlistShow );
+	    Tridens::first_process_command_line_options(\%h);
+	    Tridens::process_command_line_options(\%h);return undef;
     };
+    my $setsub = sub { my ($setflags,$st) = @_; my %h = (  );
+		       $Tridens::SettingOpts = TRUE;
+		       my ($st1,$res);
+		       $st =~ s/\\/\\\\/g; # double the backslash
+		       $st =~ s/\"/\\\"/g; # escape the double quotes
+		       no warnings 'all'; # we handle user error
+		       if ( $InterpolateCmd == TRUE ) {
+			   &Tridens::verbose( "evaluating input:". 
+					      "\$st1 = \"$st\""); # do interpolations
+			  $res = eval "\$st1 = \"$st\""; # do interpolations
+			   &Tridens::verbose( "evaluated input:'". $res . "', $st1");}
+		       else {
+			   $st1 = $st;
+			   $res = 1;
+		       }
+		       use warnings 'all'; # we handle user error
+		       if(not defined $res) { # double quotes now work for string
+			   print STDERR "Error in input.\n";
+			  if ( $st =~ /\"/ ) {
+			      print STDERR "Did you use \" instead of ' ?\n";
+			      $@ = '';
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+			  }
+			  return undef;
+		       }
+		       &Tridens::verbose( "parsing:'". $st1 . "'");
+		     #  warn "WARNING $@" if $@;
+		       $st1 = quote_complex_interactive_command_args($st1);
+		       @ARGV = Text::ParseWords::shellwords($st1); # preserve quoted strings
+		       if (@ARGV==0) {
+			   print STDERR "No argument supplied.\n";
+			   return;
+		       }
+			   &Tridens::verbose( "words: ".join(":",@ARGV));
+		       $ARGV[0] = '-'. $ARGV[0] unless $ARGV[0] =~ /^\-/;
+		       return undef unless GetOptions( \%h, @Tridens::Optlist );
+		       if (@ARGV >0) {
+			   print STDERR "Ignoring extra words at end of line '" .
+			   "Did you mean: -$ARGV[0] or forget to use single quotes?\n";
+		       }
+		       Tridens::first_process_command_line_options($setflags,\%h);
+			Tridens::process_command_line_options($setflags,\%h);return undef;};
     my %comacts  = (
 	'plot' =>  sub {$_[0] =~ s/^\s*[\'\"]//;$_[0] =~ s/[\'\"]\s*$//; #remove literal quotes
 			Tridens::plot_or_replot($_[0]); return undef;},
@@ -883,42 +956,13 @@ sub run_shell {
 	    &Tridens::read_data(Text::ParseWords::shellwords($_[0]));
 	    $_[0] =~ s/^\s*[\'\"]//;$_[0] =~ s/[\'\"]\s*$//;
 	    Tridens::plot_or_replot($_[0]); return undef;},
-	'exit' => sub { $exit = $Tridens::TRUE; },
+	'exit' => sub { $exit = TRUE; },
 	'!' => sub { my $s = `$_[0]`; chomp($s);$s},
 	'show' => $showsub,
 	'fshow' => sub {&Tridens::print_all_parameters($_[0]);return undef},
-        'set' => sub { my ($st) = @_; my %h = (  );
-		       $Tridens::SettingOpts = $TRUE;
-		       my $st1;
-		       $st =~ s/\\/\\\\/g; # double the backslash
-		       $st =~ s/\"/\\\"/g; # escape the double quotes
-		       no warnings 'all'; # we handle user error
-		       &Tridens::verbose( "evaluating input:". 
-					  "\$st1 = \"$st\""); # do interpolations
-		       my $res = eval "\$st1 = \"$st\""; # do interpolations
-		       &Tridens::verbose( "evaluated input:'". $res . "', $st1");
-		       use warnings 'all'; # we handle user error
-		       if(not defined $res) { # double quotes now work for string
-			   print STDERR "Error in input.\n";
-			  if ( $st =~ /\"/ ) {
-			      print STDERR "Did you use \" instead of ' ?\n";
-			      $@ = '';
-			  }
-			  return undef;
-		       }
-		       &Tridens::verbose( "parsing:'". $st1 . "'");
-		     #  warn "WARNING $@" if $@;
-		       @ARGV = Text::ParseWords::shellwords($st1); # preserve quoted strings
-		       $ARGV[0] = '-'. $ARGV[0] unless $ARGV[0] =~ /^\-/;
-		       return undef unless GetOptions( \%h, @Tridens::Optlist );
-		       if (@ARGV >0) {
-			   print STDERR "Ignoring extra words at end of line '" .
-			       join(",",@ARGV) . "'\n";
-			   print STDERR "Did you mean: -$ARGV[0] or forget to use single quotes?\n";
-		       }
-		       Tridens::first_process_command_line_options(%h);
-  		       Tridens::process_command_line_options(%h);return undef;},
-	'viewer' => sub { $Tridens::ViewerStarted = $Tridens::FALSE; Tridens::check_viewer(); return undef;},
+        'set' => sub {  &$setsub( {SET => 1}, @_) },
+        'unset' => sub {  &$setsub({UNSET => 1} , @_) },
+	'viewer' => sub { $Tridens::ViewerStarted = FALSE; Tridens::check_viewer(); return undef;},
 	'read' => sub { &Tridens::read_data(Text::ParseWords::shellwords($_[0])); return undef;},
 	# undef outfile here so that subsequent plots recompute the outfilename based on input file
 	'example' => sub {&Tridens::setup_example_plots();&Tridens::do_example($_[0],'view');$Tridens::Outfile=undef},
@@ -932,38 +976,51 @@ sub run_shell {
 			    my $h = $Tridens::OptHandlers{$opt};
 			    $h = [$h] unless ref($h) eq 'ARRAY';
 			    if (exists $h->[0]->{HELP}) {
-				print $opt . $h->[0]->{HELP} ."\n"; return undef}}
+				my ($r,$c) = $term->get_screen_size();
+				$Text::Wrap::columns = $c-20; # works kinda
+			#	deb("columns $c");
+				print $opt . &Text::Wrap::wrap('','',$h->[0]->{HELP}) ."\n"; return undef}}
 			    print"Try 'man' or 'html' for help or 'h' for short help.\n".
-				"Try 'example n' to run example number n.\n";undef}
+				"Try 'example n' to run example number n.\n";undef},
+	'save' => sub {&Tridens::dump_parameters(@_);},
+	'load' => sub {&Tridens::load_parameters(@_);}
 	);
 
    # make commands out of these things that are also called via 'set'
     foreach my $com ( qw( listcolors findcolors listsymbols listfonts ) ) {
-	$comacts{$com} = sub {Tridens::process_command_line_options($com => $_[0] );return undef;}
+	$comacts{$com} = sub {Tridens::process_command_line_options({$com => $_[0]} );return undef;}
     }
 
     my @coms = sort keys %comacts;
-    my $term = undef;
+
     my $OUT;
-    if ($Tridens::UseReadline == $TRUE) {
+    # fonts , etc. should be handled through a data structure 
+    # that also does checking with check_string_args below
+    if ($Tridens::UseReadline == TRUE) {
 	$term = Term::ReadLine->new('tridens');
-	$term->Attribs->{completion_query_items} = 200;
-	$term->Attribs->{completion_function} = sub {
-        my ($text, $line, $start) = @_;
-	# print("<<$text>><<$line>><<$start>>\n");
-	if ($line =~ /^\s*(set|se)\s+\w*$/) {
-	    return @Tridens::Optlistnames_set;
+	$term->read_history(".history.tridens",0,1000);
+	if (defined $term->Features->{attribs}) {
+	    $term->Attribs->{completion_query_items} = 200;
+	    $term->Attribs->{completion_function} = sub {
+		my ($text, $line, $start) = @_;
+		# print("<<$text>><<$line>><<$start>>\n");
+		if ($line =~ /^\s*(set|se)\s+\w*$/) {
+		    return @Tridens::Optlistnames_set;
+		}
+		if ($line =~ /^\s*(show|sh|sho)\s+\w*$/) {
+		    return @Tridens::Optlistnames_show;
+		}
+		if ($line =~ /^\s*\w*$/) {
+		    return @coms;}
+		if ($line =~ /^\s*se\w+\s+font\s+[\w\-]*$/) {
+		    return keys %Tridens::FontList;}
+		if ($line =~ /^\s*(h|he|hel|help)\s+\w*$/) {
+		    return @Tridens::HelpTopics;}
+		if ($line =~ /^\s*(u|un|unse|unset)\s+\w*$/) {
+		    return @Tridens::BoolVars;}
+	    };
+#	    $term->Attribs->{completion_entry_function} = undef;
 	}
-	if ($line =~ /^\s*(show|sh|sho)\s+\w*$/) {
-	    return @Tridens::Optlistnames_show;
-	}
-	if ($line =~ /^\s*\w*$/) {
-	    return keys %comacts;}
-	if ($line =~ /^\s*se\w+\s+font\s+[\w\-]*$/) {
-	    return keys %Tridens::FontList;}
-        if ($line =~ /^\s*(h|he|hel|help)\s+\w*$/) {
-	    return @Tridens::HelpTopics;}
-       };
 
 # using term->OUT may be useful, but it prevents user from printing to STDOUT
 #    my $OUT = $term->OUT || \*STDOUT;
@@ -986,9 +1043,9 @@ sub run_shell {
     }
 #    while ( scalar(@batch_lines)> 0 or defined ($input = $term->readline($prompt)) ) {
     for(;;) {
-	if ($Tridens::UseReadline == $FALSE) { $term = undef; }
+	if ($Tridens::UseReadline == FALSE) { $term = undef; }
 	my $cflag = 0;
-	$exit = $Tridens::FALSE;
+	$exit = FALSE;
 	if ( @batch_lines>0 ) {
 	    $input = shift(@batch_lines);
 	    chomp($input);
@@ -1021,68 +1078,92 @@ sub run_shell {
 		#next;
 	    }
 	}
-        if ($exit == $Tridens::TRUE) { return;}
+        if ($exit == TRUE) { return;}
 	$res = eval($input) unless $cflag == 1;
 	warn "error: $@" if $@;
 	print $OUT $res, "\n" if defined $res and not $@;
 #	$term->addhistory($input) if $input =~ /\S/; # this is done automatically apparantly
 	$@ = '';
-    }
+    } # end for(;;)
+#    deb("writing history");
+    $term->write_history(".history.tridens");
     print "\n";
 }
 
+# only used now for set mark
+sub quote_complex_interactive_command_args {
+    my($s) = @_;
+    $s =~ /^\s*(\S+)\s+(.+)/;
+    my $h = \%Tridens::OptHandlers;
+#    deb( "quote got '$1' : '$2'");
+    return $s unless defined $1;
+    my $com = $1;
+    my $arg = $2;
+    if ( exists $h->{$com} and ref($h->{$com}) eq 'HASH' and exists $h->{$com}->{VALTYPE}
+	 and $h->{$com}->{VALTYPE} eq 'string' ) {
+	return $s if $arg =~ /^\s*[\'\"]/;
+	return( $com . " '" . $arg . "'");
+    }
+    return $s;
+}
 
 package Tridens;
 use strict;
 use Getopt::Long;
 
-our ($TRUE,$FALSE); 
+sub TRUE () { 1 }
+sub FALSE () { 0 }
+
 
 # Declare user settable parameters, and most other global variables
 
 our ($OptionArg); # kludge. use this var temporarily for storing value when setting option
 
-our ($ParameterList, $PlotWidth, $AspectRatio, $LandScape, $Xmin,
- $Xmax, $Ymin, $Ymax, $XTickStart, $XTickInt,
- $YTickStart, $YTickInt, $ZeroAbs, $Pow2Eps,
- @MagicIntervals, @Divisions, $ColorMap, $Hue, $XAxisLabel,
- $YAxisLabel, $RotateYAxisLabel, $Title, $TitleYOffset,
+our ( $PlotWidth, $AspectRatio, $LandScape, $Xmin, $Xmax,
+ $Ymin, $Ymax, $XTickStart, $XTickInt, $YTickStart,
+ $YTickInt, $ZeroAbs, $Pow2Eps, @MagicIntervals, @Divisions,
+ $ColorMap, $Hue, $XLabel, $YLabel,
+ $RotateYLabel, $Title, $TitleYOffset, $TitleXOffset,
  $LBound, $HBound, $TickInterval, $NumberOfSides,
  $AutoLength, $LengthOfSide, $XLengthOfSide, $YLengthOfSide,
- $SameUnits, $Rotation, $Rotation2,
- $PSFormat, $BoundingBoxPad, $TTick, $BTick, $LTick, $RTick,
+ $SameUnits, $Rotation, $Rotation2, $PSFormat,
+ $BoundingBoxPad, $TTick, $BTick, $LTick, $RTick,
  $PolyBorder, $TriHexDraw, $LatticeGray, $NumberPoly,
  $NumberPolyDig, $NumberPolySciLim, $NumberPolyZero,
- $NumberPolyGray, $NumberPolySciScale,
- $LatexNumbers, $DotForTimes, $XAxis, $YAxis,
- $DataNorming, $DataTransformPower, $UseColTrans,
- $ColorMapHi, $ColorMapLo, $ShowNormalized, $DrawKey,
- $NumKeyBars, $KeyLabelSkip, $KeySepGray,
- $KeyExpRaise,
- $Xbuf, $Ybuf, $PlainFontname, $ItalicFontname, $Font,
- $BoldFontname, $BoldItalicFontname, $Saturation,
- $Brightness, $KeyYOffset, $KeyXOffset, $KeyWidth,
- $KeyHeight, $XAxisLabelOffset, $YAxisLabelOffset,
- $KeyDigits, $ExponentLimit, $TickLabelOffset, $PolyLineWScale,
- $FrameLineWScale,  $KeyLineWScale, 
- $AxisLineWScale, $TickLineWScale,
- $TickLengthScale, $TickFontScale, $KeyFontScale,
+ $NumberPolyGray, $NumberPolySciScale, $LatexNumbers,
+ $DotForTimes, $XAxis, $YAxis, $DataNorming,
+ $DataTransformPower, $UseColTrans, $ColorMapHi,
+ $ColorMapLo, $ShowNormalized, $DrawKey, $NumKeyBars,
+ $KeyLabelSkip, $KeySepGray, $KeyExpRaise, $Xbuf, $Ybuf,
+ $PlainFontname, $ItalicFontname, $Font, $BoldFontname,
+ $BoldItalicFontname, $Saturation, $Brightness, $KeyYOffset,
+ $KeyXOffset, $KeyWidth, $KeyHeight, 
+ $XLabelYOffset, $YLabelXOffset,  $XLabelXOffset, $YLabelYOffset, 
+ $KeyDigits, $ExponentLimit,
+ $TickLabelOffset, $TicksShiftOuter, $PolyLineWScale, $FrameLineWScale,
+ $KeyLineWScale, $AxisLineWScale, $TickLineWScale,
+ $TickLengthScale, $TickFontScale, $KeyFontScale, 
+ #$TitleFontScale,
  $AxisFontScale, $NumberPolyFontScale, $ExponentScale,
- $WriteBBox, $PostScriptInterpreter, $BBoxCommand,
- $GridDataFile, $RunShell,$UseReadline);
+ $WriteBBox, $WhiteBoxDraw, $PostScriptInterpreter, $BBoxCommand,
+ $GridDataFile, $RunShell,$UseReadline,$InterpolateCmd,
+ $LatexRun, $FontScale, $Subscale, $Supscale, $SSupscale, );
 
-our ($Outfile, $ExampleNumber, $DoAllExamples, $FontScale, $Subscale, $Supscale, $SSupscale,
-$Viewer, $ViewerScaleOpt, $ViewerScale, $PostScriptInterpreterOptions, $FontPath, $Display,
-  $NoDisplay, $HaveData, $ViewerStarted, $ViewerPid, $Pi, $E, @Optlist, @Optlist_non_interactive,
-    @Optlist_interactive, @Optlistnames_set,@Optlistnames_show,
-$BatchFile, $Browser, $PdfLatex, %RgbCodes, @RgbNames,
-$NumberOfExamplePlots, %Symcodes, @Symcodelist, %Symaliases, @Symaliaslist, $SScriptScale );
 
-our ($InterruptSent);
+our ($Outfile, $ExampleNumber, $DoAllExamples, $ViewerGvCmd, $ViewerXpdfCmd, $Viewer,
+ $PdfToIpe, $IpeToIpe, $ViewerScaleOpt, $ViewerScale,
+ $PostScriptInterpreterOptions, $FontPath, $Display,
+ $HaveData, $ViewerStarted, $ViewerPid, $Pi, $E,
+ @Optlist, @OptlistShow, @Optlist_non_interactive, @Optlist_setable,
+ @Optlistnames_set,@Optlistnames_show, $BatchFile, $Browser,
+ $PdfLatex, %RgbCodes, @RgbNames, $NumberOfExamplePlots,
+ %Symcodes, @Symcodelist, %Symaliases, @Symaliaslist,
+ $SScriptScale );
 
+our ($InterruptSent,$ParameterList);
+
+our (%Marks);
 our (%FontList);
-
-
 our ($ShortHelp);
 
 #==========================================================================
@@ -1097,17 +1178,13 @@ our ($ShortHelp);
 
 BEGIN{
 
-# True/False (binary) parameters use True=1, False=0.
-# Don't change these!
-$TRUE = 1;
-$FALSE = 0;
 
 our $ParameterList = <<'EOPARAMS';
 
-# You can use $TRUE or 1 to set options and $FALSE or 0 to unset them.
+# You can use TRUE or 1 to set options and FALSE or 0 to unset them.
  
-# Set to $TRUE to run in interactive mode.
-$RunShell = $FALSE;
+# Set to TRUE to run in interactive mode.
+$RunShell = FALSE;
 
 # Desired width of plot in inches, excluding key and
 # tick labels.
@@ -1116,8 +1193,8 @@ $PlotWidth = 5;
 $AspectRatio = 1;
 
 #  Set to one to plot landscape
-$LandScape = $FALSE;
-#$LandScape = $TRUE;
+$LandScape = FALSE;
+#$LandScape = TRUE;
 
 # Set the plot range. A limit is automatic if any of these is not defined.
 # These are ranges in units of input data.
@@ -1134,19 +1211,22 @@ $ColorMap = 'hue';
 
 # These are the title and labels strings. Escape codes can be used as described in
 # the manual.
-$XAxisLabel = '';
-$YAxisLabel = '';
+$XLabel = '';
+$YLabel = '';
 $Title = '';
 # Distance from plot border to title as fraction of plot height
 $TitleYOffset = 0.07; 
+
+# move title some from center
+$TitleXOffset = 0; 
 # set this to 1 or 0 to rotate the y axis label or not
-$RotateYAxisLabel = $FALSE;
+$RotateYLabel = FALSE;
 
 # Whether to draw ticks on L,R,B,T sides of frame
-$TTick = $TRUE;
-$BTick = $TRUE;
-$LTick = $TRUE;
-$RTick = $TRUE;
+$TTick = TRUE;
+$BTick = TRUE;
+$LTick = TRUE;
+$RTick = TRUE;
 
 # for labeling tick marks, numbers smaller than this are zero.
 $ZeroAbs = 1e-12;  
@@ -1164,21 +1244,21 @@ $Pow2Eps = 1e-12;
 # This takes more time and requires that there is a data point at a nearest
 # neighbor of the first data point in the file. This will override the
 # LengthOfSide set below.
-# In order to use LengthOfSide you *must* set AutoLength=$FALSE;
+# In order to use LengthOfSide you *must* set AutoLength=FALSE;
 
-$AutoLength = $TRUE;
-#$AutoLength = $FALSE;
+$AutoLength = TRUE;
+#$AutoLength = FALSE;
 
-# If the x and y axes have the same units, set this to $TRUE.
+# If the x and y axes have the same units, set this to TRUE.
 # If they have different units (eg different physical quantities), set this
-# to $FALSE.
-$SameUnits = $FALSE;
+# to FALSE.
+$SameUnits = FALSE;
 
-# set to $FALSE if data file has lines of triples "x y value"
+# set to FALSE if data file has lines of triples "x y value"
 # set to 1 if data file has rows separated by newlines interpreted as follows
 # the number on row $j, column $i is the value of a data point at position $i,$j,
 # that is the data is assumed to be on a grid of unit squares.
-$GridDataFile = $FALSE;
+$GridDataFile = FALSE;
 
 # Select these to plot Hexagons
 # Input x and y values for data should then be
@@ -1217,9 +1297,14 @@ $PSFormat = 'pdf';
 # pad the bounding box by this number of points
 $BoundingBoxPad = 5;
 
-# If $TRUE, draw a black border around each polygon
+# draw a white (invisible) box around entire plot image, to prevent
+# other programs from recomputing bounding box and removing the 
+# BoundingBoxPad
+$WhiteBoxDraw = TRUE;
+
+# If TRUE, draw a black border around each polygon
 # as well as its density color.
-$PolyBorder = $FALSE;
+$PolyBorder = FALSE;
 
 # whether to draw underlying triangular lattice on Hexes
 # 0 = don't draw
@@ -1229,20 +1314,20 @@ $TriHexDraw = 0;
 $LatticeGray = 0; # darkness of line (0=black, 1=white);
 
 # whether to write the numeric data value inside the polygon
-$NumberPoly=$FALSE;
+$NumberPoly=FALSE;
 # number of digits after decimal to write
 $NumberPolyDig = 3;
 # use sci. notation for abs(exponent) greater than this
 $NumberPolySciLim = 2;
 # set to zero to supress printing values equal to zero
-$NumberPolyZero = $FALSE;
+$NumberPolyZero = FALSE;
 # gray level for numbers (0=black, 1=white)
 $NumberPolyGray = 0;
 $NumberPolySciScale = .7;
 
 # Whether to draw x and y axes.
-$XAxis = $FALSE;
-$YAxis = $FALSE;
+$XAxis = FALSE;
+$YAxis = FALSE;
 
 # Data must be transformed into [0,1] for a density plot.
 # This chooses how data values are mapped onto colors or gray values.
@@ -1265,7 +1350,7 @@ $DataTransformPower = (1/2);
 # That data is normalized to the values that hue can assume in an
 # RGB color. But, we may want to do an additional linear transform.
 # Whether to do this transform (described below). 0=no, 1=yes
-$UseColTrans = $TRUE;
+$UseColTrans = TRUE;
 
 # maps normalized data values in [0,1]  into an subinterval
 # of the color space (which is also  [0,1]. )
@@ -1281,11 +1366,11 @@ $ColorMapLo =  .2;
 # the key. If set to 1, the linearly normalized data is show in the key.
 # That is the effects of  power, log, color transform etc., are not
 # shown on the plot.
-$ShowNormalized = $FALSE;
-#$ShowNormalized = $TRUE;
+$ShowNormalized = FALSE;
+#$ShowNormalized = TRUE;
 
-# Draw key to plot if = $TRUE
-$DrawKey = $TRUE;
+# Draw key to plot if = TRUE
+$DrawKey = TRUE;
 
 # number of colors/grays to show in key for plot
 $NumKeyBars = 33;
@@ -1307,7 +1392,8 @@ $Ybuf = 0.03;
 
 # Choose font names.
 
-$Font = 'helvetica';
+$Font = 'times';
+# below will be overwritten if above is defined
 $PlainFontname = 'Helvetica';
 #$PlainFontname = 'lmr10';
 $ItalicFontname = 'Helvetica-Oblique';
@@ -1366,8 +1452,12 @@ $KeyHeight = 1;
 $KeyExpRaise = 0.55;
 
 # how far to move axis labels off of frame. As fraction of dimension of frame.
-$XAxisLabelOffset = 0.07;
-$YAxisLabelOffset = 0.07;
+$XLabelYOffset = 0.07;
+$YLabelXOffset = 0.07;
+
+# text is normally centered use these to adjust, range -1 to 1
+$XLabelXOffset = 0;
+$YLabelYOffset = 0;
 
 # How many digits to print to right of decimal in floating point numbers in they key
 $KeyDigits = 2;
@@ -1381,6 +1471,9 @@ $ExponentLimit = 1;
 $TickLabelOffset = 0.01;
 #$TickLabelOffset = 0.0;
 
+# set true to move outermost ticks in
+$TicksShiftOuter = FALSE;
+
 # Default Line-widths/lengths will be multiplied by these numbers
 $PolyLineWScale    = 1;  # scale linewidth of drawn polyborder
 $FrameLineWScale     = 1;  # for frame around plot
@@ -1390,6 +1483,7 @@ $TickLineWScale    = 1;  # for tick marks
 $TickLengthScale  = 1;   # scale length of ticks
 $TickFontScale    = 1;   # scale tick font
 $KeyFontScale    = .8;   # scale numbers on color key
+#$TitleFontScale    = 1;   # scale numbers on color key
 $AxisFontScale   = 1;  # scale labels on axes
 $NumberPolyFontScale = .7; #number inside polygon
 $ExponentScale   = 0.75; # scale down size of displayed exponent
@@ -1398,7 +1492,7 @@ $ExponentScale   = 0.75; # scale down size of displayed exponent
 # pdf $WriteBBox is ignored and a bbox is always needed.
 # The bbox is produced by ghostscript.
 # This is ignored if you choos $PSFormat = 'eps' or 'pdf'
-$WriteBBox = $FALSE;
+$WriteBBox = FALSE;
 
 # Command Name of PostScript interpreter 
 # (probably gs for ghostscript)
@@ -1407,16 +1501,29 @@ $PostScriptInterpreter = 'gs';
 #$PostScriptInterpreter = '';
 
 # a list of command line arguments given when invoking the interpreter
-$PostScriptInterpreterOptions = ' -dSAFER ';
+#$PostScriptInterpreterOptions = ' -dSAFER ';
+# more threads seems to have no effect here.
+$PostScriptInterpreterOptions = ' -dSAFER -dNumRenderingThreads=2   ';
 
+# which viewer to use. eg gv or xpdf
+$Viewer = 'xpdf';
+
+$ViewerXpdfCmd = 'xpdf -remote TridensServ -z 200 -aaVector no  ';
 # how to invoke the ghostview or other postscript viewer
 # We are signaling gv to reload by sending sighup to its pid.
 # If this is broken, fall back on ' -watch'.
-#$Viewer = 'gv -watch';
-$Viewer = 'gv ';
-$ViewerScaleOpt = ' -scale=%n ';
+#$ViewerGvCmd = 'gv -watch';
+
+$ViewerGvCmd = 'gv ';
+
+# following two only work now with gv
+$ViewerScaleOpt = ' -scale=%n -spartan ';
 
 $ViewerScale = 2.0;
+
+$PdfToIpe = 'pdftoipe -literal ';
+
+$IpeToIpe = 'ipetoipe ';
 
 # Command to launch your web browser
 $Browser = 'firefox';
@@ -1427,13 +1534,17 @@ $PdfLatex = 'pdflatex';
 # If true, print LaTeX expressions for numbers that can be processed
 # by another program, such as ipe. If FALSE we use our own routines
 # to write scientific notation
-$LatexNumbers = $TRUE;
+$LatexNumbers = FALSE;
+
+$LatexRun = FALSE;
 
 # draw a dot rather than a times symbol for multiplication
-$DotForTimes = $FALSE;
+$DotForTimes = FALSE;
 
 # whether to use readline. If false, then just read from a simple loop
-$UseReadline = $TRUE;
+$UseReadline = TRUE;
+
+$InterpolateCmd = FALSE;
 
 ##########
 # Probably never need to change the things below.
@@ -1441,7 +1552,7 @@ $UseReadline = $TRUE;
 # Computing the bbox for eps files would be a PITA.
 # I assume a ghostscript interpreter is present and
 # ask it to compute the bbox.
-$BBoxCommand = $PostScriptInterpreter . 
+$BBoxCommand = $PostScriptInterpreter .  $PostScriptInterpreterOptions .
     " -q -dNOPAUSE -dBATCH -sDEVICE=bbox ";
 
 # List of "pleasing" intervals between ticks on graph.
@@ -1529,49 +1640,60 @@ EOSHH
 # These can be used interactively, but dont show up in completion lists
 # and so forth for 'show' and 'set' since they have no vars associated with
 # them. So this list is actually misnamed.
-    @Optlist_non_interactive = ( 'h','v','i',
-    'listcolors:i', 'findcolors:s', 'listsymbols:i',
+
+
+
+@Optlist_non_interactive = ( 'h','v','i',
+    'listcolors:i', 'findcolors:s', 'listsymbols:i','ex:i',
     'listfonts', 'man', 'mandoc', 'htmldoc','html','pdfdoc',
     'textdoc', 'paramfile','version' );
 
 # removed because broken: 'hex'
 # these are used both interactively and on the command line
-   @Optlist_interactive = ( 
-   'latexnumbers',   'nolatexnumbers', 'dotfortimes','nodotfortimes',
-    'nousereadline', 'cmhue',
-   'bbpad:i', 'subscale:f', 'supscale:f', 'ssupscale:f',
-   'buf:f', 'saturation:f', 'brightness:f', 'hue:f',
-   'cmhi:f', 'shownorm', 'showraw', 'keynbars:i',
-   'cmsatbright:f', 'title:s', 'offsettitle:s',
-   'explim:i','keydigits:i', 'viewerpid:i', 'fontscale:f',
-   'display', 'nodisplay', 'batch:s', 'grided','nogrided',
-   'ex:i', 'demo:i', 'outfile:s', 'keylabelskip:i', 'key',
-   'nokey', 'xbuf:f', 'ybuf:f',
-   'keywidth:f','keyheight:f','keyxoffset:f','keyyoffset:f',
-   'nopolyborder', 'xaxis','yaxis', 'noxaxis',
-   'noyaxis','noaxis','axis', 'usepower', 'uselinear' ,
-   'numberpoly', 'square', 'tri' , 'circle', 'ps', 'eps',
-   'numberpolyfontscale:f', 'viewerscale:f', 'font:s', 'pdf'
-   , 'sidelength:s', 'xsidelength:s','ysidelength:s',
-   'portrait', 'landscape', 'plotwidth:f', 'xlabel:s',
-   'power:f', 'lattice', 'nolattice', 'latticegray:f', 'cmlo:f',
-   'sameunits','nosameunits', 'autolength', 'noautolength',
-   'ticklabeloffset:f','polylinew:f','framelinew:f','keylinew:f','keyexpraise:f',
-   'ticklength:f','tickfontscale:f','keyfontscale:f','axisfontscale:f','exponentfontscale:f',
-   'ticklinew:f', 'axislinew:f', 'xmin:s', 'xmax:s',
-   'ymin:s', 'ymax:s', 'ylabel:s', 'rotylabel',
-   'norotylabel', 'polyborder', 'cmgray', 'cmsaturation:f',
-   'cmbrightness:f');
+   @Optlist_setable = ( 
+   'verbose!', 'mark:s',
+   'latexnumbers!',   'latexrun!', 
+    'dotfortimes!',
+    'cmhue', 'aspectratio=f',
+   'bbpad=i', 'subscale=f', 'supscale=f', 'ssupscale=f',
+   'buf=f', 'saturation=f', 'brightness=f', 'hue=f',
+   'cmhi=f', 'shownorm!', 'showraw!', 'keynbars=i',
+   'cmsatbright=f', 'title=s', 'titleyoffset=s', 'titlexoffset=s',
+   'xlabelxoffset=f',   'ylabelxoffset=f',   'xlabelyoffset=f',   'ylabelyoffset=f',
+   'explim=i','keydigits=i', 'viewerpid=i', 'viewer:s', 'fontscale=f',
+   'display!', 'batch=s', 'grided!',
+   'demo:i', 'outfile=s', 'keylabelskip=i', 'key!',
+   'xbuf=f', 'ybuf=f',
+   'keywidth=f','keyheight=f','keyxoffset=f','keyyoffset=f',
+   'xaxis!','yaxis!',
+   'axis!', 'usepower!', 'uselinear!' ,
+   'numberpoly!', 'square', 'tri' , 'circle', 'ps', 'eps',
+   'numberpolyfontscale=f', 'viewerscale=f', 'font=s', 'pdf'
+   , 'sidelength=s', 'xsidelength=s','ysidelength=s',
+   'portrait!', 'landscape!', 'plotwidth=f', 'xlabel=s',
+   'power=f', 'lattice!', 'latticegray=f', 'cmlo=f',
+   'sameunits!','autolength!',
+   'ticklabeloffset=f','ticksshiftouter','polylinew=f','framelinew=f','keylinew=f','keyexpraise=f',
+   'ticklength=f','tickfontscale=f','keyfontscale=f',
+   'whitebox!',       
+#   'titlefontscale=f',
+ 'axisfontscale=f','exponentfontscale=f',
+   'ticklinew=f', 'axislinew=f', 'xmin=s', 'xmax=s',
+   'ymin=s', 'ymax=s', 'ylabel=s', 'rotylabel!',
+   'polyborder!', 'cmgray', 'cmsaturation=f',
+   'cmbrightness=f');
 
-     @Optlist = (@Optlist_non_interactive,@Optlist_interactive);
+@Optlist = (@Optlist_non_interactive,@Optlist_setable);
+@OptlistShow = @Optlist;
+foreach (@OptlistShow) {  s/[\=\:\!].?// };
 
 # tab completion with 'show'
-     @Optlistnames_show = (@Optlist_non_interactive,@Optlist_interactive);
-     foreach (@Optlistnames_show) { s/[\:\=]\w+//} # strip type symbols
+     @Optlistnames_show = (@Optlist_non_interactive,@Optlist_setable);
+     foreach (@Optlistnames_show) { s/[\:\=\!].?//} # strip type symbols
 
 # tab completion with 'set'
-     @Optlistnames_set = @Optlist_interactive;
-     foreach (@Optlistnames_set) { s/[\:\=]\w+//} # strip type symbols
+     @Optlistnames_set = @Optlist_setable;
+     foreach (@Optlistnames_set) { s/[\:\=\!].?//} # strip type symbols
 
     my @optlist2 = (
 	'generatetest', 'test'
@@ -1597,30 +1719,25 @@ EOSHH
 # OPTVAL => 1 means set from the argument given by user
 # VAL means no argument, just set a value given in the handler
 # VALTYPE eq 'string' forces quotes around the arg before eval'ing
-# SETSUB is a routine to do further processing, update quantities depending on VAR
-# DEFER means don't set the variable immediately, but rather assign
-#  the given value to $OptionArg. Then SETSUB may use this value to
-#  set tha actual value of VAR
-# DEFER should maybe be replaced with something better.
+# POSTSUB is a routine to do further processing, update quantities depending on VAR
 # DOUNDEF: if no argument is given then variable is set to undef
    our %OptHandlers = (
-
-       cmhue => {VAR => 'ColorMap', VAL => '"hue"', VALTYPE => 'scalar'},
+        verbose =>{VAR => 'Verbose', VAL => 1, VALTYPE => 'bool'},
+        display =>{VAR => 'Display', VAL => 1, VALTYPE => 'bool'},
+        whitebox =>{VAR => 'WhiteBoxDraw', VAL => 1, VALTYPE => 'bool'},
+        cmhue => {VAR => 'ColorMap', VAL => '"hue"', VALTYPE => 'scalar'},
 	cmgray => {VAR => 'ColorMap', VAL => '"gray"', VALTYPE => 'scalar'},
 	cmsaturation => [ {VAR => 'ColorMap', VAL => '"saturation"', VALTYPE => 'scalar'},
 		       {VAR => 'Hue', OPTVAL => 1, OPTDEFAULT => '$Hue'  }], # trick to leave Hue unchanged
 	cmbrightness => [ {VAR => 'ColorMap', VAL => '"brightness"', VALTYPE => 'scalar'},
-		       {VAR => 'Hue', OPTVAL => 1, OPTDEFAULT => '$Hue'  }],
+		       {VAR => 'Hue', OPTVAL => 1, OPTDEFAULT => '$Hue' }],
 	cmsatbright => [ {VAR => 'ColorMap', VAL => '"satbright"', VALTYPE => 'scalar'},
 		       {VAR => 'Hue', OPTVAL => 1, OPTDEFAULT => '$Hue'  }],
 	numberpoly => {VAR => 'NumberPoly', VAL => 1, VALTYPE => 'bool'},
 	autolength => {VAR => 'AutoLength', VAL => 1, VALTYPE => 'bool'},
- 	 noautolength => { VAR => 'AutoLength', VAL => 0, VALTYPE => 'bool'},     
-        nousereadline => { VAR => 'UseReadline', VAL => 0, VALTYPE => 'bool' },
 	landscape =>{VAR => 'LandScape', VAL => 1, VALTYPE => 'bool'},
 	portrait =>{VAR => 'LandScape', VAL => 0, VALTYPE => 'bool'},
 	polyborder =>{VAR => 'PolyBorder', VAL => 1, VALTYPE => 'bool'},
-	nopolyborder =>{VAR => 'PolyBorder', VAL => 0, VALTYPE => 'bool'},
 	axis => [ {VAR => 'XAxis', VAL => 1, VALTYPE => 'bool'},
 		  {VAR => 'YAxis', VAL => 1, VALTYPE => 'bool'}],
 	noaxis => [ {VAR => 'XAxis', VAL => 0, VALTYPE => 'bool'},
@@ -1642,101 +1759,186 @@ EOSHH
 		    { VAR => 'Rotation', VAL => '0' },
 		    { VAR => 'SameUnits', VAL => 1}],
         sameunits =>{VAR => 'SameUnits', VAL => 1, VALTYPE => 'bool'},
-        nosameunits =>{VAR => 'SameUnits', VAL => 0, VALTYPE => 'bool'},
-	viewerscale =>{VAR => 'ViewerScale', OPTVAL => 1, VALTYPE => 'scalar'},
+	viewerscale =>{VAR => 'ViewerScale', OPTVAL => 1, VALTYPE => 'scalar', CHK=>'posfloat'},
 	xaxis =>{VAR => 'XAxis', VAL => 1, VALTYPE => 'bool'},
-	noxaxis =>{VAR => 'XAxis', VAL => 0, VALTYPE => 'bool'},
 	yaxis =>{VAR => 'YAxis', VAL => 1, VALTYPE => 'bool'},
-	noyaxis =>{VAR => 'YAxis', VAL => 0, VALTYPE => 'bool'},
 	lattice =>{VAR => 'TriHexDraw', VAL => 1, VALTYPE => 'bool'},
-	nolattice =>{VAR => 'TriHexDraw', VAL => 0, VALTYPE => 'bool'},
 	key =>{VAR => 'DrawKey', VAL => 1, VALTYPE => 'bool',
               HELP => ' (nokey) enables (disables) drawing the plot key (color to value key).'},
-	nokey =>{VAR => 'DrawKey', VAL => 0, VALTYPE => 'bool'},
-        keywidth =>{VAR => 'KeyWidth', OPTVAL => 1,
+        keywidth =>{VAR => 'KeyWidth', OPTVAL => 1, CHK => 'posfloat1' ,
               HELP => ' sets the width of the plot key as a fraction of the plot width.' },
-        keyheight =>{VAR => 'KeyHeight', OPTVAL => 1},
-        keyxoffset =>{VAR => 'KeyXOffset', OPTVAL => 1},
-        keyyoffset =>{VAR => 'KeyYOffset', OPTVAL => 1},
-        keyexpraise =>{VAR => 'KeyExpRaise', OPTVAL => 1},
+        keyheight =>{VAR => 'KeyHeight', OPTVAL => 1, CHK => 'posfloat'},
+        keyxoffset =>{VAR => 'KeyXOffset', OPTVAL => 1, CHK => 'float'},
+        keyyoffset =>{VAR => 'KeyYOffset', OPTVAL => 1, CHK => 'float'},
+        keyexpraise =>{VAR => 'KeyExpRaise', OPTVAL => 1, CHK => 'float'},
+        aspectratio =>{VAR => 'AspectRatio', OPTVAL => 1, CHK => 'posfloat'},
 #	 'keywidth:f','keyheight:f','keyxoffset:f','keyyoffset:f'
 	showraw =>{VAR => 'ShowNormalized', VAL => 0, VALTYPE => 'bool'},
 	shownorm =>{VAR => 'ShowNormalized', VAL => 1, VALTYPE => 'bool'},
-	rotylabel =>{VAR => 'RotateYAxisLabel', VAL => 1, VALTYPE => 'bool'},
-	norotylabel =>{VAR => 'RotateYAxisLabel', VAL => 0, VALTYPE => 'bool'},
 	latexnumbers=>{VAR => 'LatexNumbers', VAL => 1, VALTYPE => 'bool'},	  
-	nolatexnumbers=>{VAR => 'LatexNumbers', VAL => 0, VALTYPE => 'bool'},	  
+	latexrun=>{VAR => 'LatexRun', VAL => 1, VALTYPE => 'bool'},
 	dotfortimes=>{VAR => 'DotForTimes', VAL => 1, VALTYPE => 'bool'},	  
-	nodotfortimes=>{VAR => 'DotForTimes', VAL => 0, VALTYPE => 'bool'},	  
-	pdf =>{VAR => 'PSFormat', VAL => '"pdf"', VALTYPE => 'scalar', SETSUB=> \&change_ps_suffix},
-	eps =>{VAR => 'PSFormat', VAL => '"eps"', VALTYPE => 'scalar', SETSUB=> \&change_ps_suffix},
-	ps =>{VAR => 'PSFormat', VAL => '"ps"', VALTYPE => 'scalar', SETSUB=>  \&change_ps_suffix},
+	pdf =>{VAR => 'PSFormat', VAL => '"pdf"', VALTYPE => 'scalar', POSTSUB=> \&change_ps_suffix},
+	eps =>{VAR => 'PSFormat', VAL => '"eps"', VALTYPE => 'scalar', POSTSUB=> \&change_ps_suffix},
+	ps =>{VAR => 'PSFormat', VAL => '"ps"', VALTYPE => 'scalar', POSTSUB=>  \&change_ps_suffix},
 	usepower =>{VAR => 'DataNorming', VAL => '"power"', VALTYPE => 'scalar'},
-	explim =>{VAR => 'ExponentLimit', OPTVAL => 1 , VALTYPE => 'scalar',
+	explim =>{VAR => 'ExponentLimit', OPTVAL => 1 , VALTYPE => 'scalar', CHK => 'nonnegint',
          HELP=>' sets the largest power of ten to write in normal, rather than scientific notation in they key.'},
-	keydigits =>{VAR => 'KeyDigits', OPTVAL => 1 , VALTYPE => 'scalar',
+	keydigits =>{VAR => 'KeyDigits', OPTVAL => 1 , VALTYPE => 'scalar', CHK => 'posint',
                  HELP=>' sets how many digits to print to right of decimal in floating point numbers in they key.'},
 	uselinear =>{VAR => 'DataNorming', VAL => '"linear"', VALTYPE => 'scalar'},
-	plotwidth =>{VAR => 'PlotWidth', OPTVAL => 1, UNIT => 'inches' },
+	plotwidth =>{VAR => 'PlotWidth', OPTVAL => 1, UNIT => 'inches', CHK => 'posfloat' },
 	title =>{VAR => 'Title', OPTVAL => 1, VALTYPE=>'string'},
-	offsettitle =>{VAR => 'TitleYOffset', OPTVAL => 1},
-	xlabel =>{VAR => 'XAxisLabel', OPTVAL => 1, VALTYPE=>'string'},
-	ylabel =>{VAR => 'YAxisLabel', OPTVAL => 1, VALTYPE=>'string'},
-	sidelength =>{VAR => 'LengthOfSide', OPTVAL => 1}, # this may be overwritten by square and tri. fix it
-	xsidelength =>{VAR => 'XLengthOfSide', OPTVAL => 1},
-	ysidelength =>{VAR => 'YLengthOfSide', OPTVAL => 1},
-	saturation =>{VAR => 'Saturation', OPTVAL => 1},
-	brightness =>{VAR => 'Brightness', OPTVAL => 1},
-	hue =>{VAR => 'Hue', OPTVAL => 1},
-	xbuf =>{VAR => 'Xbuf', OPTVAL => 1, UNIT => 'times plot width', SETSUB=> \&compute_buffers_on_frame},
-	ybuf =>{VAR => 'Ybuf', OPTVAL => 1, UNIT => 'times plot height',SETSUB=> \&compute_buffers_on_frame},
-	buf => [ {VAR => 'Xbuf', OPTVAL => 1, UNIT => 'times plot width'},
-		 {VAR => 'Ybuf', OPTVAL => 1, UNIT => 'times plot height',SETSUB=> \&compute_buffers_on_frame}],
-	keynbars =>{VAR => 'NumKeyBars', OPTVAL => 1},
-	keylabelskip =>{VAR => 'KeyLabelSkip', OPTVAL => 1},
-	cmhi =>{VAR => 'ColorMapHi', OPTVAL => 1},
-	cmlo =>{VAR => 'ColorMapLo', OPTVAL => 1},
-	latticegray =>{VAR => 'LatticeGray', OPTVAL => 1},
-	power =>{VAR => 'DataTransformPower', OPTVAL => 1},
+	titleyoffset =>{VAR => 'TitleYOffset', OPTVAL => 1, CHK => 'float'},
+	titlexoffset =>{VAR => 'TitleXOffset', OPTVAL => 1, CHK => 'float'},
+	xlabel =>{VAR => 'XLabel', OPTVAL => 1, VALTYPE=>'string'},
+	ylabel =>{VAR => 'YLabel', OPTVAL => 1, VALTYPE=>'string'},
+	rotylabel =>{VAR => 'RotateYLabel', VAL => 1, VALTYPE => 'bool'},
+        xlabelxoffset => {VAR => 'XLabelXOffset', OPTVAL => 1, CHK => 'float' },
+        xlabelyoffset => {VAR => 'XLabelYOffset', OPTVAL => 1, CHK => 'float' },
+        ylabelyoffset => {VAR => 'YLabelYOffset', OPTVAL => 1, CHK => 'float' },
+        ylabelxoffset => {VAR => 'YLabelXOffset', OPTVAL => 1, CHK => 'float' },
+	sidelength =>{VAR => 'LengthOfSide', OPTVAL => 1, CHK => 'posfloat'}, # this may be overwritten by square and tri. fix it
+	xsidelength =>{VAR => 'XLengthOfSide', OPTVAL => 1, CHK => 'posfloat'},
+	ysidelength =>{VAR => 'YLengthOfSide', OPTVAL => 1, CHK => 'posfloat'},
+	saturation =>{VAR => 'Saturation', OPTVAL => 1, CHK => 'posfloat1'},
+	brightness =>{VAR => 'Brightness', OPTVAL => 1, CHK => 'posfloat1'},
+	hue =>{VAR => 'Hue', OPTVAL => 1, CHK => 'posfloat1'},
+	xbuf =>{VAR => 'Xbuf', OPTVAL => 1, UNIT => 'times plot width', CHK => 'float', POSTSUB=> \&compute_buffers_on_frame},
+	ybuf =>{VAR => 'Ybuf', OPTVAL => 1, UNIT => 'times plot height', CHK => 'float',POSTSUB=> \&compute_buffers_on_frame},
+	buf => [ {VAR => 'Xbuf', OPTVAL => 1, UNIT => 'times plot width', CHK => 'float'},
+		 {VAR => 'Ybuf', OPTVAL => 1, UNIT => 'times plot height', CHK => 'float',POSTSUB=> \&compute_buffers_on_frame}],
+	keynbars =>{VAR => 'NumKeyBars', OPTVAL => 1, CHK => 'posint'},
+	keylabelskip =>{VAR => 'KeyLabelSkip', OPTVAL => 1, CHK => 'posint'},
+	cmhi =>{VAR => 'ColorMapHi', OPTVAL => 1, CHK => 'posfloat1' },
+	cmlo =>{VAR => 'ColorMapLo', OPTVAL => 1, CHK => 'posfloat1'},
+	latticegray =>{VAR => 'LatticeGray', OPTVAL => 1, CHK => 'posfloat1'},
+	power =>{VAR => 'DataTransformPower', OPTVAL => 1, CHK => 'posfloat1'},
 	outfile =>{VAR => 'Outfile', OPTVAL => 1, VALTYPE=>'string'},
-	fontscale =>{VAR => 'FontScale', OPTVAL => 1},
-	bbpad =>{VAR => 'BoundingBoxPad', OPTVAL => 1, UNIT => 'PostScript points'},
+	fontscale =>{VAR => 'FontScale', OPTVAL => 1, CHK => 'posfloat'},
+	bbpad =>{VAR => 'BoundingBoxPad', OPTVAL => 1, UNIT => 'PostScript points', CHK => 'float'},
 	xmin =>{VAR => 'Xmin', OPTVAL => 1, DOUNDEF => 1},
 	ymin =>{VAR => 'Ymin', OPTVAL => 1, DOUNDEF => 1},
 	xmax =>{VAR => 'Xmax', OPTVAL => 1, DOUNDEF => 1},
 	ymax =>{VAR => 'Ymax', OPTVAL => 1, DOUNDEF => 1},
-	subscale =>{VAR => 'Subscale', OPTVAL => 1},
-	supscale =>{VAR => 'Supscale', OPTVAL => 1},
-	ssupscale =>{VAR => 'SSupscale', OPTVAL => 1},
-	ticklabeloffset =>{VAR => 'TickLabelOffset', OPTVAL => 1},
-	polylinew =>{VAR => 'PolyLineWScale', OPTVAL => 1},
-	framelinew =>{VAR => 'FrameLineWScale', OPTVAL => 1},
-	keylinew =>{VAR => 'KeyLineWScale', OPTVAL => 1},
-	axislinew =>{VAR => 'AxisLineWScale', OPTVAL => 1},
-        ticklinew =>{VAR => 'TickLineWScale', OPTVAL => 1},
-	ticklength =>{VAR => 'TickLengthScale', OPTVAL => 1},
-	tickfontscale =>{VAR => 'TickFontScale', OPTVAL => 1},
-	keyfontscale =>{VAR => 'KeyFontScale', OPTVAL => 1},
-	axisfontscale =>{VAR => 'AxisFontScale', OPTVAL => 1},
-	numberpolyfontscale =>{VAR => 'NumberPolyFontScale', OPTVAL => 1},
-	exponentfontscale =>{VAR => 'ExponentScale', OPTVAL => 1,
+	subscale =>{VAR => 'Subscale', OPTVAL => 1, CHK => 'posfloat'},
+	supscale =>{VAR => 'Supscale', OPTVAL => 1, CHK => 'posfloat'},
+	ssupscale =>{VAR => 'SSupscale', OPTVAL => 1, CHK => 'posfloat'},
+	ticklabeloffset =>{VAR => 'TickLabelOffset', OPTVAL => 1, CHK => 'float'},
+	polylinew =>{VAR => 'PolyLineWScale', OPTVAL => 1,CHK=>'nonnegfloat'},
+	framelinew =>{VAR => 'FrameLineWScale', OPTVAL => 1,CHK=>'nonnegfloat'},
+	keylinew =>{VAR => 'KeyLineWScale', OPTVAL => 1,CHK=>'nonnegfloat'},
+	axislinew =>{VAR => 'AxisLineWScale', OPTVAL => 1,CHK=>'nonnegfloat'},
+        ticklinew =>{VAR => 'TickLineWScale', OPTVAL => 1,CHK=>'nonnegfloat'},
+	ticklength =>{VAR => 'TickLengthScale', OPTVAL => 1,CHK=>'nonnegfloat'},
+	tickfontscale =>{VAR => 'TickFontScale', OPTVAL => 1,CHK=>'nonnegfloat'},
+        ticksshiftouter =>{VAR => 'TicksShiftOuter', VAL => 1, VALTYPE => 'bool'},	  
+	keyfontscale =>{VAR => 'KeyFontScale', OPTVAL => 1,CHK=>'nonnegfloat'},
+#	titlefontscale =>{VAR => 'TitleFontScale', OPTVAL => 1,CHK=>'nonnegfloat'},
+	axisfontscale =>{VAR => 'AxisFontScale', OPTVAL => 1,CHK=>'nonnegfloat'},
+	numberpolyfontscale =>{VAR => 'NumberPolyFontScale', OPTVAL => 1,CHK=>'nonnegfloat'},
+	exponentfontscale =>{VAR => 'ExponentScale', OPTVAL => 1,CHK=>'nonnegfloat',
             HELP=>' sets a scale factor that gives the size of characters in the exponents relative to the size of the characters in the mantissa.'},
 	grided => [ {VAR => 'GridDataFile', VAL => 1, VALTYPE => 'bool'},
 		    {VAR => 'AutoLength', VAL => 0, VALTYPE => 'bool'} ],
-	nogrided =>  {VAR => 'GridDataFile', VAL => 0, VALTYPE => 'bool'},
 	viewerpid =>{VAR => 'ViewerPid', OPTVAL => 1},
-       font => { VAR => 'Font', OPTVAL => 1, VALTYPE => 'string', DEFER => 1, SETSUB=> \&choose_font_names},
-
-	
+       font => { VAR => 'Font', OPTVAL => 1, VALTYPE => 'string', SETSUB=> \&choose_font_names},
+       viewer => { VAR => 'Viewer', OPTVAL => 1, VALTYPE => 'string', SETSUB=> \&choose_viewer},
+       mark => { VAR => 'Marks', VARTYPE => 'hash', VALTYPE => 'string', SETSUB => sub { 
+	   my ($argst) = @_;
+	   my (@args) = split(' ',$argst);
+	   my $markname;
+	   if ($args[0] eq 'n') {
+	       shift(@args);
+	       $markname = shift(@args);
+	   }
+	   if (@args == 0) { # delete mark
+	       if (exists $Marks{$markname}) {
+		   delete $Marks{$markname};return;
+	       }
+	   }
+	   my ($x,$y) = @args if @args == 2;
+	   if (not defined $markname) {
+	       my @mnames = sort {$a<=>$b} keys %Marks;
+	       my $n=@mnames;
+	       $markname = 1;
+	       $markname = $mnames[$n-1] + 1 if $n>0;
+           }
+	   if (not exists $Marks{$markname}) {    
+	       my $nm = {};
+	       $nm->{X} = $x;
+	       $nm->{Y} = $y;
+	       $nm->{SIZE} = 0.005;
+	       $Marks{$markname} = $nm;
+	   }
+	 },
+	 SHOWSUB => sub {$Data::Dumper::Terse=1; my @mnames = sort {$a<=>$b} keys %Marks; 
+				  foreach my $name (@mnames) {
+				      print "Mark number $name: ". Dumper($Marks{$name});
+				  }
+			 $Data::Dumper::Terse = undef;
+		 }}
 );  # end our %OptHandlers = (
 
 our @HelpTopics;
+our @BoolVars;
+
 foreach my $okey (keys %OptHandlers) {
     my $hand = $OptHandlers{$okey}; # h is the handler for option $key
     $hand = [$hand] unless ref($hand) eq 'ARRAY'; # put single handler in an array
     	foreach my $h (@$hand) {
 	    push( @HelpTopics,$okey) if exists $h->{HELP};
+	    push( @BoolVars,$okey) if exists $h->{VALTYPE} and $h->{VALTYPE} eq 'bool';
 	}
+}
+
+
+# save most parameters to a file
+sub dump_parameters {
+    my ($fname) = @_;
+    $fname = 'save.tridens' unless defined $fname and not $fname =~ /^\s*$/;
+    my $hands = \%OptHandlers;
+    my @okeys = keys %$hands;
+    my %v;
+    my (@vals,@names);
+    my (%seen);
+    foreach my $key (@okeys) {
+#	deb("doing '$key'");
+	my $opt = $hands->{$key};
+	$opt = [$opt] unless ref($opt) eq 'ARRAY';
+	foreach my $h (@$opt) {
+	    if (exists $h->{VAR}) {
+		my $var = $h->{VAR};
+#		my $st = '$v{' . $var . '} = $' . $var;
+#		deb($st);
+#		eval $st;
+		if (not defined $seen{$var}) {
+		    my $val;
+		    if (exists $h->{VARTYPE}) {
+			$val = eval '\%'. $var if $h->{VARTYPE} eq 'hash';
+		    }
+		    else {
+			$val = eval '$'. $var;
+		    }
+		    push @vals, $val;
+		    push @names, '*'. $var;
+		    $seen{$var}=1;
+		}
+	    }
+	}
+    }
+    open OHAND,">$fname" or die "Can't save tridens state";
+    print OHAND "# tridens saved state\n";
+    print OHAND Data::Dumper->Dump(\@vals,\@names);
+    print OHAND "1\n";
+    close(OHAND);
+}
+
+sub load_parameters {
+    my ($fname) = @_;
+    $fname = 'save.tridens' unless defined $fname  and not $fname =~ /^\s*$/;
+    do $fname;
+    choose_font_names($Font) if defined $Font;
 }
 
 # print all parameters, optionally, those matching $pat
@@ -1749,6 +1951,7 @@ sub print_all_parameters {
 	my $hand = $OptHandlers{$okey}; # h is the handler for option $key
 	$hand = [$hand] unless ref($hand) eq 'ARRAY'; # put single handler in an array
 	foreach my $h (@$hand) {
+	    next unless exists $h->{VAR};
 	    my $var = $h->{VAR};
 	    $invopt{$var} = {}  unless exists $invopt{$var};
 	    foreach my $vkey (keys %{$h}) {  # copy the hash
@@ -1784,18 +1987,129 @@ sub print_all_parameters {
     }
 }
 
+our %CheckSubs = (
+    'posfloat' => \&is_posfloat,
+    'posfloat1' => \&is_posfloat1,
+    'float' => \&is_float,
+    'int' => \&is_int,
+    'posint' => \&is_posint,
+    'nonnegint' => \&is_nonnegint,
+    'nonnegfloat' => \&is_nonnegfloat,
+    );
+
+our %CheckNames = (
+    'posfloat' => 'a positive floating point (including integers) number',
+    'posfloat1' => 'a positive floating point (including integers) number less than 1',
+    'float' => 'a floating point number',
+    'int' => 'an integer number',
+    'posint' => 'an positive integer number',
+    'nonnegint' => 'a non-negative integer number',
+    'nonnegfloat' => 'a non-negative floating point number'
+    );
+
+sub check_value_type {
+    my ($val,$h) = @_;
+    return 1 unless exists $h->{CHK};
+    my $code = $CheckSubs{$h->{CHK}};
+    my $res = &$code($val);
+    if ( not defined $res ) {
+	herror($h->{VAR} . " must be a " . $CheckNames{$h->{CHK}} . ".");
+	return undef;
+    }
+    return 1;
+ }
+
+#This is from the perl cookbook.
+# It converts a string to a floating point number,
+# or returns undef on failure.
+sub to_float {
+    my $str = shift;
+    $str =~ s/^\s+//;
+    $str =~ s/\s+$//;
+#    deb("to_float $str");
+    $! = 0;
+    my($num, $unparsed) = strtod($str);
+    if (($str eq '') || ($unparsed != 0) || $!) {
+        return;
+    } else {
+        return $num;
+    } 
+} 
 
 
-# set this to $FALSE for getting opts, true for setting.
-    our $SettingOpts = $TRUE;
+sub is_posfloat {
+    my $x = shift;
+    $x = to_float($x);
+    return if not defined $x;
+    return if $x<=0;
+    return 1;
+}
+
+sub is_posfloat1 {
+    my $x = shift;
+    $x = to_float($x);
+    return if not defined $x;
+    return if $x<=0;
+    return if $x>1;
+    return 1;
+}
+
+sub is_nonnegfloat {
+    my $x = shift;
+    $x = to_float($x);
+    return if not defined $x;
+    return if $x<0;
+    return 1;
+}
+
+sub is_nonnegint {
+    my $x = shift;
+    my $ans = is_integer($x);
+    return if not defined $ans;
+    return if $x<0;
+    return 1;
+}
+
+sub is_float {
+    my $x = shift;
+    $x = to_float($x);
+    return if not defined $x;
+    return 1;
+}
+
+sub is_posint {
+    my $x = shift;
+    my $ans = is_integer($x);
+    return if not defined $ans;
+    return if $x<=0;
+    return 1;
+}
+
+# return 1 if number is an integer,
+# undef, otherwise.
+# don't accept leading zeroes
+sub is_integer {
+    my $num = shift;
+    $num =~ s/^\s+//;
+    $num =~ s/\s+$//;
+    return 1 if $num eq '0';
+    return undef if $num =~ /^[+-]?0/;
+    return 1 if $num =~ /^[+-]?\d+$/;
+    return undef;
+}
+
+
+
+# set this to FALSE for getting opts, true for setting.
+    our $SettingOpts = TRUE;
     my %h = ( 'v' => \$Verbose ); # hash for options
     GetOptions( \%h, (@Optlist, @optlist2 ));
 # input data file name from command line
 # other arguments are  already taken by GetOptions()
     $Infile = $ARGV[0];
     initialize();
-    process_command_line_options(%h);
-    first_process_command_line_options(%h);
+    process_command_line_options(\%h);
+    first_process_command_line_options(\%h);
 
 
 # process command line options via handlers. the next routine , process_
@@ -1803,42 +2117,59 @@ sub print_all_parameters {
 # %opth is hash of options and values given by user
 # find the handler her for each one.
 sub first_process_command_line_options {
-    my (%opth) = @_;
-    foreach my $key (keys %opth) {
+    my ($setflags,$opth) = @_;
+    if (not defined $opth) {
+	$opth=$setflags;
+	$setflags = { SET => 1}
+
+    }
+    foreach my $key (keys %$opth) {
 	next unless exists $OptHandlers{$key};
 	my $hand = $OptHandlers{$key}; # h is the handler for option $key
 	$hand = [$hand] unless ref($hand) eq 'ARRAY'; # put single handler in an array
 	foreach my $h (@$hand) {
 	    if (exists $h->{VAR}) {
 		my $var = $h->{VAR};
-		if ($SettingOpts == $TRUE) {
+		if (exists $setflags->{UNSET} and exists $h->{VALTYPE} and $h->{VALTYPE} ne 'bool') {
+		    herror("Can't unset '$key'");return;
+		} 	
+		if ($SettingOpts == TRUE) {
+		  #  print Dumper($opth);
 		    if (exists $h->{VAL}) { # set variable
-			my $setst = '$'.$var . " = " . $h->{VAL};
+			my $val = $h->{VAL};
+			if ( exists $h->{VALTYPE} and $h->{VALTYPE} eq 'bool'
+			     and  $opth->{$key} == 0 ) { # negation ! on commandline
+			    $val = 1-$val;
+			}
+			if (exists $setflags->{UNSET}) { $val = 1-$val;}
+			my $setst = '$'.$var . " = " . $val;
 			eval $setst;
 		    }
 		    elsif (exists $h->{OPTVAL}) { # set variable
-			my $oval = $opth{$key};
+ 		        # actually, font name, viewer namem, etc could be handled
+                        # through check val
+			if (exists $h->{SETSUB}) { # handled specially
+			    &{$h->{SETSUB}}($opth->{$key});
+			    next;
+			}
+			my $oval = $opth->{$key};
+			next unless check_value_type($oval,$h);
 			$oval = "'$oval'" if defined $h->{VALTYPE} and $h->{VALTYPE} eq 'string';
 			if (exists $h->{DOUNDEF}) { # no arg undefines value
 			    $oval = 'undef' if $oval =~ /^\s*$/;
 			}
-			if ( exists $h->{OPTDEFAULT} and $opth{$key} eq '') {
+			if ( exists $h->{OPTDEFAULT} and $opth->{$key} eq '') {
 			    $oval = $h->{OPTDEFAULT};
 			}
-			my $setst;
-			if (exists $h->{DEFER} ){
-			    $setst = '$OptionArg  = ' . $oval;
-			}
-			else {
-			    $setst = '$'.$var . " = " . $oval;
-			}
+			my  $setst = '$'.$var . " = " . $oval;
 			eval $setst;
 		    }
-		    if (exists $h->{SETSUB}) {
-			&{$h->{SETSUB}};
+		    if (exists $h->{POSTSUB}) {
+			&{$h->{POSTSUB}}($opth->{$key});
 		    }
 		}
-		else { # getting: so return value
+		else { # showing: so return value
+		    if (exists $h->{SHOWSUB}) {&{$h->{SHOWSUB}}; next;}
 		    if (exists $h->{VAL} or exists $h->{OPTVAL}) { # get var
 			if (exists $h->{VALTYPE} and $h->{VALTYPE} eq 'bool' ) {
 			    my $s = 'TRUE'; $s = 'FALSE' if eval( '$'.$var) == 0;
@@ -1852,6 +2183,13 @@ sub first_process_command_line_options {
 			    print " " . $h->{UNIT} if exists $h->{UNIT};
 			    print "\n";
 			}
+		    }
+		}
+	    } 	#  if (exists $h->{VAR})
+	    else {
+		if ($SettingOpts == TRUE) { 
+		    if (exists $h->{SETSUB}) {
+			&{$h->{SETSUB}}($opth->{$key});
 		    }
 		}
 	    }
@@ -1869,23 +2207,22 @@ sub print_codes_columns  {
     print "\n";
 }
 
-
 sub process_command_line_options {
-    my (%h) = @_;
+    my ($h,$setflags) = @_;
     verbose "processing command line options";
-    if ( exists $h{h} ) {
+    if ( exists $h->{h} ) {
 	show_short_help();
     }
-    if ( exists $h{generatetest} ) { setup_example_plots();run_tests(1); }
-    if ( exists $h{test} ) {setup_example_plots(); run_tests(0); }
-    if ( exists $h{version} ) {
+    if ( exists $h->{generatetest} ) { setup_example_plots();run_tests(1); }
+    if ( exists $h->{test} ) {setup_example_plots(); run_tests(0); }
+    if ( exists $h->{version} ) {
 	print "tridens $VERSION\n";
 	iexit(0);
     }
-    if ( exists $h{man}  ){
+    if ( exists $h->{man}  ){
 	show_man_page();
     }
-    if ( exists $h{mandoc}  ){
+    if ( exists $h->{mandoc}  ){
 	my $res = `pod2man --help 2>&1 `;
         if ( defined $res and $res =~ /Usage/ ) {
 	    verbose "pod2man  $ScriptName tridens.1";
@@ -1897,7 +2234,7 @@ sub process_command_line_options {
 	    iexit(0);
 	}
     }
-    if ( exists $h{textdoc}  ){
+    if ( exists $h->{textdoc}  ){
 	my $res = `pod2text --help 2>&1 `;
         if ( defined $res and $res =~ /Usage/ ) {
 	    system "pod2text $ScriptName ";
@@ -1908,7 +2245,7 @@ sub process_command_line_options {
 	    iexit(0);
 	}
     }
-    if ( exists $h{htmldoc}  ){
+    if ( exists $h->{htmldoc}  ){
 	my $res = `pod2html --help 2>&1 `;
         if ( defined $res and $res =~ /Usage/ ) {
 	    verbose "pod2html --outfile=tridens.html  $ScriptName ";
@@ -1920,7 +2257,7 @@ sub process_command_line_options {
 	    iexit(0);
 	}
     }
-    if ( exists $h{pdfdoc}  ){
+    if ( exists $h->{pdfdoc}  ){
 	my $res = `pod2latex --help 2>&1 `;
         if ( defined $res and $res =~ /Usage/ ) {
 	    verbose "pod2latex -full $ScriptName ";
@@ -1934,41 +2271,41 @@ sub process_command_line_options {
 	    iexit(0);
 	}
     }
-    if ( exists $h{html}  ){
+    if ( exists $h->{html}  ){
 	show_html_page();
     }
-    if ( exists $h{paramfile} ) {
+    if ( exists $h->{paramfile} ) {
 	verbose("Writing parameter file '$Initfilename'");
        open( OSTHAND , ">$Initfilename") or die
                "Can't open '$Initfilename' for writing.";
 	print OSTHAND  parameter_prolog(),  $ParameterList;
 	iexit(0);
     }
-    if ( exists $h{listcolors} ) {
+    if ( exists $h->{listcolors} ) {
 	setup_rgb_codes();
 	my $n = 4;
-	$n = $h{listcolors} if  $h{listcolors} ne '' and $h{listcolors} > 0;
+	$n = $h->{listcolors} if  $h->{listcolors} ne '' and $h->{listcolors} > 0;
 	print_codes_columns(\@RgbNames,$n);
 	iexit(0);
     }
-    if ( exists $h{listfonts} ) {
+    if ( exists $h->{listfonts} ) {
 	print_codes_columns([keys %FontList],4);
 	iexit(0);
     }
-    if ( exists $h{listsymbols} ) {
+    if ( exists $h->{listsymbols} ) {
 	setup_symcodelist();
 	my $n = 4;
-	$n = $h{listsymbols} if $h{listsymbols} ne '' and $h{listsymbols} > 0;
+	$n = $h->{listsymbols} if $h->{listsymbols} ne '' and $h->{listsymbols} > 0;
 	print_codes_columns(\@Symcodelist,$n);
 	print "\nAliases from Latex to some symbols:\n";
 	print_codes_columns(\@Symaliaslist,$n);
 	iexit(0);
     }
-    if ( exists $h{findcolors} ) {
+    if ( exists $h->{findcolors} ) {
 	setup_rgb_codes();
 	my $n = 4;
 	my $j=0;
-	my $pat = $h{findcolors};
+	my $pat = $h->{findcolors};
 	my $st = '';
 	for(my $i=0;$i<@RgbNames;$i++) {
 	    my $name = $RgbNames[$i];
@@ -1984,43 +2321,44 @@ sub process_command_line_options {
 	print $st;
 	iexit(0);
     }
-    if ( exists $h{hex} ) { # this is broken
+    if ( exists $h->{hex} ) { # this is broken
 	$NumberOfSides = 3;
-#	$LengthOfSide =   1/(sqrt(3)) unless exists $h{sidelength};
-#	$LengthOfSide =   sqrt(3)/2 unless exists $h{sidelength};
-	$LengthOfSide =   1.7 unless exists $h{sidelength};
+#	$LengthOfSide =   1/(sqrt(3)) unless exists $h->{sidelength};
+#	$LengthOfSide =   sqrt(3)/2 unless exists $h->{sidelength};
+	$LengthOfSide =   1.7 unless exists $h->{sidelength};
 	$Rotation = '30';
 	$Rotation2 = '210';
     }
-    if ( exists $h{ex} ) {
-	$ExampleNumber = $h{ex};
+    if ( exists $h->{ex} ) {
+	$ExampleNumber = $h->{ex};
     }
-    if ( exists $h{demo} ) {
-	$DoAllExamples = $h{demo};
+    if ( exists $h->{demo} ) {
+	$DoAllExamples = $h->{demo};
     }
-    if ( exists $h{display} ) {
-	$Display = $TRUE;
-	$NoDisplay = $FALSE;
+    if ( exists $h->{nodisplay} ) {
+#	$NoDisplay = TRUE;
+	$Display = FALSE;
     }
-    if ( exists $h{nodisplay} ) {
-	$NoDisplay = $TRUE;
-	$Display = $FALSE;
+    if ( exists $h->{i} ) {
+	$RunShell = TRUE;
+	$Display = TRUE unless exists $h->{nodisplay} ;
     }
-    if ( exists $h{i} ) {
-	$RunShell = $TRUE;
+    if ( exists $h->{batch} ) {
+	$BatchFile = $h->{batch};
+	$RunShell = TRUE;
     }
-    if ( exists $h{batch} ) {
-	$BatchFile = $h{batch};
-	$RunShell = $TRUE;
-    }
-    if ( (not defined $Infile or $Infile eq '') and not (exists $h{ex}  or exists $h{i} or exists $h{batch} 
-							 or exists $h{demo} or $RunShell == $TRUE) ){
+    if ( (not defined $Infile or $Infile eq '') and not (exists $h->{ex}  or exists $h->{i} or exists $h->{batch} 
+							 or exists $h->{demo} or $RunShell == TRUE) ){
 #	print STDERR "No input file specified; try option $ScriptName -h for help.\n";
 #	exit(1);
-	$RunShell = $TRUE; # now go straight to interactive mode.
+	$RunShell = TRUE; # now go straight to interactive mode.
     }
   } # end  sub process_command_line_options {
 }  # end initialization block
+
+
+# options that are more complex than most; cannot be used from command line easily
+#sub handle_interactive_only
 
 
 # END Process Commandline Options
@@ -2047,12 +2385,14 @@ EOPAR
 our $Psfile ;
 our $Pdffile ;
 our $Epsfile ;
+our $Ipefile ;
 
 sub set_output_file_names {
     my $Infile = shift; # Infile is global, but this is flexible
     $Psfile = "$Infile.ps";
     $Pdffile = "$Infile.pdf";
     $Epsfile = "$Infile.eps";
+    $Ipefile = "$Infile.ipe";
 }
 
 # use this if the output format has changed to change the suffix.
@@ -2070,8 +2410,9 @@ our $Getstderr = ' 2>&1 1>/dev/null';
 # $Xlo,$Xhi,$Ylo,$Yhi are limits of data set, computed
 # on reading. $XBlo,$XBhi,$YBlo,$YBhi are the same with
 # a buffers. See read_data() below.
-our ($Xlo,$Xhi,$Ylo,$Yhi);
-our ($XBlo,$XBhi,$YBlo,$YBhi);
+our ($Xlo,$Xhi,$Ylo,$Yhi);  # 'window' units
+our ($DXlo,$DXhi,$DYlo,$DYhi); # limits in  physical data units
+our ($XBlo,$XBhi,$YBlo,$YBhi); # with padding
 
 # a few things that are written at the top of the PostScript file.
 our ($DocTypeLine, $ShowPage, $PaperComments);
@@ -2084,6 +2425,8 @@ our (  $SetDensityColor, $Polypath, $WhichFill );
 
 # will be computed by gs and then inserted into file on second pass.
 our $BoundingBox = '';
+
+our $WhiteBox = '';
 
 # for postscript
 our $PageSize = '';
@@ -2114,7 +2457,7 @@ sub dosys {
 sub iexit {
     my($code) = @_;
     $code = 0 unless defined $code;
-    exit($code) unless $RunShell == $TRUE;
+    exit($code) unless $RunShell == TRUE;
 }
 
 sub herror {
@@ -2197,6 +2540,7 @@ sub initialize {
     $Pi = 4*atan(1);
     $E = exp(1.0);
     setup_font_list();
+    choose_font_names($Font) if defined $Font;
 }
 
 # set_polygon_params() Some parametes set by the user
@@ -2234,10 +2578,10 @@ sub set_polygon_params {
     else {
 	die "Only polygons with 3,4, or 6 sides are supported.";
     }
-    if ( $PolyBorder == $TRUE) {
+    if ( $PolyBorder == TRUE) {
 	$WhichFill =  'polystfill';
     }
-    elsif ( $PolyBorder == $FALSE) {
+    elsif ( $PolyBorder == FALSE) {
 	$WhichFill =  'polyfill';
     }
     else {
@@ -2341,7 +2685,6 @@ sub read_data {
     if (not -e $file) { herror("Input data file '$file' does not exist."); return undef;}
     $Infile = $file; # this is assbackwards, but needed for interactive mode
     my $i = 0;
-#    my $j = -1;
     my $sum = 0;
     $max_v = undef;
     $min_v = undef;
@@ -2350,10 +2693,9 @@ sub read_data {
     my $ymin_dist = -1;
     my $dist;
     @Xs = @Ys = @V = ();
-# Following two lines were here in version 0.16, but they are clearly wrong.
-# Remove them and see if it breaks something.
     $XBlo = $XBhi = $YBlo = $YBhi = undef;
     $Xlo = $Xhi = $Ylo = $Yhi = undef;
+    $DXlo = $DXhi = $DYlo = $DYhi = undef;
     if ($GridDataFile == 1) {
 	read_data_inner_grid($file);
     }
@@ -2364,7 +2706,7 @@ sub read_data {
     }
     for($i=0;$i<@Xs;$i++) {
 	if ( $AutoLength == 1 and $i != 0 ) {
-	    if ($SameUnits == $TRUE ) {
+	    if ($SameUnits == TRUE ) {
 		$dist = ($Xs[0]-$Xs[$i])*($Xs[0]-$Xs[$i]) + ($Ys[0]-$Ys[$i])*($Ys[0]-$Ys[$i]);
 		if (  $dist < $min_dist  or  $min_dist == -1 ) {
 		    $min_dist = $dist;
@@ -2383,29 +2725,29 @@ sub read_data {
 	    }
 	}
 	$sum += $V[$i];
-	$Xlo = $Xs[$i] if not defined $Xlo;
-	$Xhi = $Xs[$i] if not defined $Xhi;
-	$Ylo = $Ys[$i] if not defined $Ylo;
-	$Yhi = $Ys[$i] if not defined $Yhi;
+	$DXlo = $Xs[$i] if not defined $DXlo;
+	$DXhi = $Xs[$i] if not defined $DXhi;
+	$DYlo = $Ys[$i] if not defined $DYlo;
+	$DYhi = $Ys[$i] if not defined $DYhi;
 	
-	$Xlo = $Xs[$i] if $Xs[$i] < $Xlo;
-	$Ylo = $Ys[$i] if $Ys[$i] < $Ylo;
-	$Xhi = $Xs[$i] if $Xs[$i] > $Xhi;
-	$Yhi = $Ys[$i] if $Ys[$i] > $Yhi;
+	$DXlo = $Xs[$i] if $Xs[$i] < $DXlo;
+	$DYlo = $Ys[$i] if $Ys[$i] < $DYlo;
+	$DXhi = $Xs[$i] if $Xs[$i] > $DXhi;
+	$DYhi = $Ys[$i] if $Ys[$i] > $DYhi;
 	
 	$max_v = $V[$i] if not defined $max_v;
 	$min_v = $V[$i] if not defined $min_v;
 	$max_v = $V[$i] if $V[$i] > $max_v;
 	$min_v = $V[$i] if $V[$i] <  $min_v;
     }
-    if ( $SameUnits == $TRUE and $min_dist <=  0 ) {
+    if ( $SameUnits == TRUE and $min_dist <=  0 ) {
 	herror( "Can't find distance between points automatically");
 	iexit(0);
     }
-    verbose("got Xlo=$Xlo, Xhi=$Xhi, Ylo=$Ylo, Yhi=$Yhi");
+    verbose("got Xlo=$DXlo, Xhi=$DXhi, Ylo=$DYlo, Yhi=$DYhi");
     if ( $AutoLength == 1) {
 	if ( $NumberOfSides == 4 ) {
-	    if ( $SameUnits == $TRUE ) {
+	    if ( $SameUnits == TRUE ) {
 		$LengthOfSide = sqrt($min_dist);
 	    }
 	    else {
@@ -2426,7 +2768,7 @@ sub read_data {
 	    $LengthOfSide = sqrt($min_dist) * 1/sqrt(3);
 	}
     }
-    if ( $SameUnits == $TRUE ) {
+    if ( $SameUnits == TRUE ) {
 	verbose "Nearest neighbor distance is " . sqrt($min_dist) ;
 	$XLengthOfSide = $LengthOfSide;
 	$YLengthOfSide = $LengthOfSide;
@@ -2434,28 +2776,41 @@ sub read_data {
     verbose "sum of data values $sum";
 
 # Allow for width of hexes on edge
-#    $Xlo--;
-#    $Ylo--;
-#    $Xhi++;
-#    $Yhi++;
-    $Xlo -= $XLengthOfSide;
-    $Ylo -= $YLengthOfSide;
-    $Xhi += $XLengthOfSide;
-    $Yhi += $YLengthOfSide;
+#    $DXlo -= $XLengthOfSide;
+#    $DYlo -= $YLengthOfSide;
+#    $DXhi += $XLengthOfSide;
+#    $DYhi += $YLengthOfSide;
 
     
 # override with  user supplied values if defined.
-    $Xlo =  $Xmin if defined $Xmin;
-    $Ylo =  $Ymin if defined $Ymin;
-    $Xhi =  $Xmax if defined $Xmax;
-    $Yhi =  $Ymax if defined $Ymax;
+    $DXlo =  $Xmin if defined $Xmin;
+    $DYlo =  $Ymin if defined $Ymin;
+    $DXhi =  $Xmax if defined $Xmax;
+    $DYhi =  $Ymax if defined $Ymax;
 
-    compute_buffers_on_frame();
-    $HaveData = $TRUE;
+#    $Xlo = $DXlo; remove this stuff soon. just for testing
+#    $Xhi = $DXhi;
+#    $Ylo = $DYlo;
+#    $Yhi = $DYhi;
+ 
+    set_window_coordinates();
+    $HaveData = TRUE;
     verbose "Finished reading data";
 
     return 1;
 }  # end read_data()
+
+
+sub set_window_coordinates {
+   $Xlo = 0;
+    if ($SameUnits == TRUE and $NumberOfSides==6) {
+	{$Xhi = 2/sqrt(3);}
+    }
+    else {$Xhi = $AspectRatio;}
+    $Ylo = 0;
+    $Yhi = 1;
+    compute_buffers_on_frame();
+}
 
 sub compute_buffers_on_frame {
 # add a bit of a buffer to data plotting area at 
@@ -2557,28 +2912,51 @@ sub norm_log {
     }
 }
 
+#  limits for first space  x1,x2 
+#  limits for primed space  xp1,xp2 
+# This takes x to xp (x')
+sub coordinate_transform {
+    my ($x,$x1,$x2,$xp1,$xp2) = @_;
+    return ($xp1*($x-$x2)-$xp2*($x-$x1))/($x1-$x2);
+}
+
+sub data_to_window_transform_x {
+    my ($x) = @_;
+    return coordinate_transform($x,$DXlo,$DXhi,$Xlo,$Xhi);
+}
+
+sub data_to_window_transform_y {
+    my ($y) = @_;
+    return coordinate_transform($y,$DYlo,$DYhi,$Ylo,$Yhi);
+}
+
 # write the postscript commands to draw the polygons covering the plot
 sub make_data_postscript {
    my $i;
    my $str = '';
-   if ($NumberOfSides == 3) {
-       for ($i=0;$i<@Xs;$i++) { # plot the data
-	   if ($i % 2 == 0){  $str .= pshex( $Xs[$i] ,  $Ys[$i], $b[$i]  );}
-	   else {  $str .= pshex_rot_180( $Xs[$i] ,  $Ys[$i], $b[$i]  );}
-       }
-       return $str;
-   }
+   my ($x,$y);
+#   if ($NumberOfSides == 3) { broken now
+#       for ($i=0;$i<@Xs;$i++) { # plot the data
+#	   if ($i % 2 == 0){  $str .= pshex( $Xs[$i] ,  $Ys[$i], $b[$i]  );}
+#	   else {  $str .= pshex_rot_180( $Xs[$i] ,  $Ys[$i], $b[$i]  );}
+#       }
+#       return $str;
+#   }
    for ($i=0;$i<@Xs;$i++) { # plot the data
+       $x = $Xs[$i];
+       $y = $Ys[$i];
+       $x = data_to_window_transform_x($x);
+       $y = data_to_window_transform_y($y);
        if ( $NumberPoly == 1) {
 	   if ( $ShowNormalized == 1) {
-		$str .= pshexn( $Xs[$i] ,  $Ys[$i], $b[$i], $nlin[$i]  );
+		$str .= pshexn( $x ,  $y, $b[$i], $nlin[$i]  );
 	   }
 	   else {
-	       $str .= pshexn( $Xs[$i] ,  $Ys[$i], $b[$i], $V[$i]  );
+	       $str .= pshexn( $x ,  $y, $b[$i], $V[$i]  );
 	   }
        }
        else {
-	    $str .= pshex( $Xs[$i] ,  $Ys[$i], $b[$i]  );
+	    $str .= pshex( $x ,  $y, $b[$i]  );
        }
    }
    return $str;
@@ -2614,11 +2992,11 @@ sub setup_example_plots {
        { FILE => 'tr1.dat', ARGS => '-tri -cmsatur .1 -title \'cmsaturation .1 \''},
        { FILE => 'tr1.dat', ARGS => '-tri -cmbright .4  -title \'cmbright .4 \''},
        { FILE => 'tr1.dat', ARGS => '-tri -cmsatur .4 -title \'cmsaturation .4  \''},
-       { FILE => 'sq1.dat', ARGS => '-nokey -ylab \'Long unrotated \it y\rm  label\' -title \'No key, \^ super\^2 supersuper\_ sub\- normal \''},
-       { FILE => 'sq1.dat', ARGS => '-nokey -rotylab -ylab \'Long rotated \it y\rm  label\' -title \'No key, \^ super\^2 supersuper\_ sub\- normal \''},
+       { FILE => 'sq1.dat', ARGS => '-nokey -ylabel \'Long unrotated \it y\rm  label\' -title \'No key, \^ super\^2 supersuper\_ sub\- normal \''},
+       { FILE => 'sq1.dat', ARGS => '-nokey -rotylab -ylabel \'Long rotated \it y\rm  label\' -title \'No key, \^ super\^2 supersuper\_ sub\- normal \''},
        { FILE => 'tr1.dat', ARGS => '-tri -title \'\red \^2 \sym test\_ \green \rm test\- \bi \blue Test\''},
        { FILE => 'tr1.dat', ARGS => '-tri -axis -title \'Axes\'' },
-       { FILE => 'tr1.dat', ARGS => '-tri -fontscale 2 -title \'Fontscale 2\'' },
+       { FILE => 'tr1.dat', ARGS => '-tri -fontscale 2  -title \'Fontscale 2\'' },
        { FILE => 'tr1.dat', ARGS => '-tri -fontscale 2 -bbpad 30 -title \'Fontscale 2 and bbpad 30 \'' },
        { FILE => 'tr1.dat', ARGS => '-tri -explim 10  -keydigits 4 -title \'No scientific notation in key\'' },
        { FILE => 'tr1.dat', ARGS => '-tri -xbuf .2 -ybuf .2  -title \'X and Y buffers big\'' },
@@ -3030,12 +3408,12 @@ sub real_show {
 }
 
 # scientific notation with superscript
-# TODO, give option for this
+# native means we draw the scientific notation in PostScript
 sub sci_not_native {
     my $n = shift;
     my ($mant,$exp) = split('e',$n);
     my $pe = sprintf("%d",$exp);
-    if ( $DotForTimes == $TRUE) {
+    if ( $DotForTimes == TRUE) {
 	return "($mant) ($pe) drawscinotdot";
     }
     else {
@@ -3105,26 +3483,33 @@ sub make_xticks  {
     my ($lbound,$hbound) = ($LBound,$HBound);
     $lbound = 'auto';
     $hbound = 'auto';
-    my @xticks = auto_ticks($Xlo,$Xhi,$lbound,$hbound,$TickInterval,
+    my @sxticks = auto_ticks($DXlo,$DXhi,$lbound,$hbound,$TickInterval,
 		  \@MagicIntervals, \@Divisions);
+    my @xticks;
+    for($i=0;$i<@sxticks;$i++) { $xticks[$i]=data_to_window_transform_x($sxticks[$i]);}
     my $nticks = scalar(@xticks);
     while ( $xticks[0] < $XBlo ) {
 	shift(@xticks);
+	shift(@sxticks);
 	$nticks--;
     }
     while ( $xticks[-1] > $XBhi ) {
 	pop(@xticks);
+	pop(@sxticks);
 	$nticks--;
     }
-    my ($xpos,$xlpos);
+    my ($xpos,$xlpos,$xshow);
     for ($i=0;$i< $nticks; $i++) {
 	$xpos = $xlpos = $x = $xticks[$i];
+	$xshow = $sxticks[$i];
 	# adjust end ticks a bit
-	$xlpos = "$x rtickfontheight 2 div sub" if $i == $nticks -1;
-	$xlpos = "$x rtickfontheight 2 div add" if $i ==  0;
+	if ( $TicksShiftOuter == TRUE) {
+	    $xlpos = "$x rtickfontheight 2 div sub" if $i == $nticks -1;
+	    $xlpos = "$x rtickfontheight 2 div add" if $i ==  0;
+	}
 	$x = 0 if  abs($x) < $ZeroAbs;
-	$s .=  "($x) $xlpos yblo $xpos yblo drawbtick\n" if $BTick == 1;
-	$s .=  "($x) $xlpos ybhi $xpos ybhi drawttick\n" if $TTick == 1;
+	$s .=  "($xshow) $xlpos yblo $xpos yblo drawbtick\n" if $BTick == 1;
+	$s .=  "($xshow) $xlpos ybhi $xpos ybhi drawttick\n" if $TTick == 1;
     }
     return $s;
 # Looks Like following is not used !!
@@ -3150,27 +3535,34 @@ sub make_yticks  {
     my ($i, $y, $ypos, $ylpos);
     my $s = '';
     return $s unless $LTick == 1 || $RTick == 1;
-    my @yticks = auto_ticks($Ylo,$Yhi,$LBound,$HBound,$TickInterval,
+    my @syticks = auto_ticks($DYlo,$DYhi,$LBound,$HBound,$TickInterval,
 			    \@MagicIntervals, \@Divisions);
-
+    my @yticks;
+    for($i=0;$i<@syticks;$i++) { $yticks[$i]=data_to_window_transform_y($syticks[$i]);}
     my $nticks = scalar(@yticks);
     while ( $yticks[0] < $YBlo ) {
 #	print STDERR "popping tick mark\n";
 	shift(@yticks);
+	shift(@syticks);
 	$nticks--;
     }
     while ( $yticks[-1] > $YBhi ) {
 	pop(@yticks);
+	pop(@syticks);
 	$nticks--;
     }
+    my $yshow;
     for ($i=0;$i< $nticks; $i++) {
 	$ypos = $ylpos = $y = $yticks[$i];
+	$yshow = $syticks[$i];
 	# adjust end ticks a bit
-	$ylpos = "$y rtickfontheight 2 div sub" if $i == $nticks -1;
-	$ylpos = "$y rtickfontheight 2 div add" if $i ==  0;
+	if ( $TicksShiftOuter == TRUE) {
+	    $ylpos = "$y rtickfontheight 2 div sub" if $i == $nticks -1;
+	    $ylpos = "$y rtickfontheight 2 div add" if $i ==  0;
+	}
 	$y = 0 if  abs($y) < $ZeroAbs;
-	$s .=  "($y) xblo $ylpos xblo $ypos drawltick\n" if $LTick == 1;
-	$s .=  "($y) xbhi $ylpos xbhi $ypos drawrtick\n" if $RTick == 1;
+	$s .=  "($yshow) xblo $ylpos xblo $ypos drawltick\n" if $LTick == 1;
+	$s .=  "($yshow) xbhi $ylpos xbhi $ypos drawrtick\n" if $RTick == 1;
     }
     return $s;
 # Looks Like following is not used !!
@@ -3246,8 +3638,26 @@ sub draw_axes {
 
 sub make_title {
     my $st;
-#    $st = "1  1.05  ($Title)  XCenterText";
-    $st = print_centeredx($YBlo+(1+$TitleYOffset*$FontScale)*($YBhi-$YBlo),($XBlo+$XBhi)/2,$Title);
+    my $sh = $TitleXOffset;
+    $st = print_centeredx($YBlo+(1+$TitleYOffset*$FontScale)*($YBhi-$YBlo),
+			  ((1-$sh)*$XBlo+(1+$sh)*$XBhi)/2,$Title);
+    return $st;
+}
+
+sub draw_marks {
+    my $st = '';
+    my @keys = keys %Marks;
+    if (@keys > 0) {
+	$st = "gsave newpath\n";
+	foreach my $m (@keys) {
+	    my $mh = $Marks{$m};
+	    my $x  = $Xlo + ($Xhi-$Xlo)*$mh->{X} ;
+	    my $y  = $Ylo + ($Yhi-$Ylo)*$mh->{Y} ;
+	    my $size = $mh->{SIZE};
+	    $st .= "$x $y moveto\n" . "currentpoint $size 0 360 arc\n" . "fill\n";
+	}
+	$st .= "grestore\n";
+    }
     return $st;
 }
 
@@ -3321,6 +3731,7 @@ integral integraltp integralex integralbt parenrighttp parenrightex parenrightbt
     langle rangle cup cap pm mp ge le );
 
 %Symaliases = (
+    times => 'multiply',
     otimes => 'circlemultiply',
     oplus => 'circleplus',
     leftarrow => 'arrowleft',
@@ -3578,28 +3989,47 @@ sub setup_font_list {
 	);
 }
 
-# set the four standard fonts from the list above.
-sub choose_font_names {
-    my $name = $OptionArg;
-    my @names = sort keys %FontList;
-    my $fonts;
-    my $outname = '';
-    foreach (@names) {
-	if (/^$name/) {
-	    $outname = $_;
+# should be a data structure that sends things here.
+# same data should be used for compeletion
+#
+# font => [ qw(list of font names)]
+# viewer => [ viewer names ...]
+sub check_string_args {
+    my($s,$strs,$msg) = @_;
+    $s = strip_spaces($s);
+    my $outst = '';
+    foreach (@$strs) {
+	if (/^$s/) {
+	    $outst = $_;
 	    last;
 	}
     }
-    if ($outname eq '') {
-	herror("Unknown font name '$name'");
-	return;
+    if ($outst eq '') {
+	herror("Unknown $msg '$s'");
+	return undef;
     }
+    return $outst;
+}
+
+# set the four standard fonts from the list above.
+# Ths OptionArg thing is useless. The args are acutally passed
+sub choose_font_names {
+    my ($name) = @_;
+    my @names = sort keys %FontList;
+    my $outname = check_string_args($name,\@names,'font name');
+    return undef unless defined $outname;
     $Font = $outname;
     my $f = $FontList{$outname};
     ($PlainFontname,$ItalicFontname,$BoldFontname,$BoldItalicFontname) = @$f;
     return $Font;
 }
 
+sub choose_viewer {
+    my ($v) = @_;
+    my $outv = check_string_args($v,['gv','xpdf'],'viewer program');
+    return undef unless defined $outv;
+    $Viewer = $outv;
+}
    
 sub setup_mixed_fonts {
     my $boxwidth = $XBhi - $XBlo;
@@ -3672,8 +4102,7 @@ $xnssupshift = $fontsize / $rfontsize * .05;
 $xssupshift = - $fontsize / $rfontsize * .02;
 $subshift = - $fontsize / $rfontsize * .17;
 $nsubshift = -$subshift;
-# ERROR !? should be rfontsize below ?
-$xsubshift = - $fontsize/$fontsize * .01;
+$xsubshift = - $fontsize/$rfontsize * .01;
 
 
 %scriptshifts = ( '^' => {IN=>"$xsupshift supshift ",OUT=>"0 supshift neg "},
@@ -4470,8 +4899,8 @@ my ( $keycolorboxes_com,  # create bars in key to plot
      $font_declarations_com)
     = ('','','','','');
 
-my ($prolog,$data,$yticks,$xticks,$title,$axes,$xlabel,$ylabel) = 
-	('','','','','','','','','');
+my ($prolog,$data,$yticks,$xticks,$title,$axes,$marks,$xlabel,$ylabel) = 
+	('','','','','','','','','','');
 
 # These postscript commands are interspersed in the prolog.
 sub create_interspersed_postscript {
@@ -4509,20 +4938,21 @@ sub create_post_prolog_strings {
     $title = ''; # in case it has been set once
     $title = make_title() if defined $Title and  $Title ne '';
     $axes = draw_axes();
+    $marks = draw_marks();
     $xlabel = '';
-    $xlabel = print_centeredx($YBlo - ($boxwidth*$XAxisLabelOffset*$FontScale),($XBlo+$XBhi)/2, 
-			      $XAxisLabel) if$XAxisLabel ne '';
+    my $sh = $XLabelXOffset;
+    $xlabel = print_centeredx($YBlo - ($boxwidth*$XLabelYOffset*$FontScale),((1-$sh)*$XBlo+(1+$sh)*$XBhi)/2, 
+			      $XLabel) if$XLabel ne '';
     $ylabel = '';
-    if ($YAxisLabel ne '') {
-	if ($RotateYAxisLabel == 1) {
-#	    $ylabel = "($YAxisLabel) drawYaxislabelRotated" 
-	    $ylabel = print_to_left_rot(($YBlo+$Yhi)/2, 
-				      $XBlo - ($boxwidth*$YAxisLabelOffset*$FontScale), $YAxisLabel);
+    $sh = $YLabelYOffset;
+    if ($YLabel ne '') {
+	if ($RotateYLabel == 1) {
+	    $ylabel = print_to_left_rot(((1-$sh)*$YBlo+(1+$sh)*$Yhi)/2, 
+				      $XBlo - ($boxwidth*$YLabelXOffset*$FontScale), $YLabel);
 	}
 	else {
-	    $ylabel = print_to_left(($YBlo+$Yhi)/2, 
-				      $XBlo - ($boxwidth*$YAxisLabelOffset*$FontScale), $YAxisLabel);
-#	    $ylabel = "($YAxisLabel) drawYaxislabel"
+	    $ylabel = print_to_left(((1-$sh)*$YBlo+(1+$sh)*$Yhi)/2, 
+				      $XBlo - ($boxwidth*$YLabelXOffset*$FontScale), $YLabel);
 	}
     }
     
@@ -4543,6 +4973,7 @@ $yticks
 $title
 $xlabel
 $ylabel
+$marks
 $drawkey_com
 $ShowPage
 %%EOF
@@ -4589,9 +5020,28 @@ seem to be useful. In converting the eps to pdf, the gs arguments -dDEVICEWIDTHP
 
 =cut
 
+
+=begin comment
+
+
+    gsave
+    1 setlinewidth
+    newpath
+    100.173997 200.43399 moveto
+    100.173997 590.989982  lineto
+    609.493982 590.989982 lineto
+    609.493982 200.433994 lineto
+
+=end comment
+
+
+=cut
+
+
 sub write_output {
     verbose "Writing output...";
-    if ( $WriteBBox == 1 or $PSFormat eq  'eps' or $PSFormat eq  'pdf' ) {
+    $BoundingBox = '';
+    if ( $WriteBBox == TRUE or $PSFormat eq  'eps' or $PSFormat eq  'pdf' ) {
 	if ( not defined $PostScriptInterpreter  or $PostScriptInterpreter eq '') {
 	    herror("Can't create eps,pdf, and bounding box. No ghostscript");
 	}
@@ -4636,11 +5086,30 @@ sub write_output {
 		$bnums[4] = $ywidth;
 	    }
 	    $outline[$i] = join(" ",@bnums);
+
+	    $WhiteBox = '';
+	    if ($WhiteBoxDraw == TRUE) {
+		$WhiteBox =  <<"WHITEEOL";
+      		       gsave
+                       1 setlinewidth
+                       newpath
+                       $bnums[1] $bnums[2] moveto
+                       $bnums[1] $bnums[4] lineto
+                       $bnums[3] $bnums[4] lineto
+                       $bnums[3] $bnums[2] lineto
+                       closepath
+                       1 setgray
+                       stroke
+                       grestore
+
+WHITEEOL
+	    } 	# end  if ($WhiteBoxDraw == TRUE)
 	}
 	$BoundingBox = $outline[0] . "\n" . $outline[1];
 	$BoundingBox = "\n" . $BoundingBox ;
 	$PageSize = "\n";
 	$TranslatePlot = '';
+
 	verbose "PSFormat is $PSFormat";
 	if ( $PSFormat eq 'ps' ) {
 	    set_prolog_string();
@@ -4673,15 +5142,21 @@ sub write_output {
 		"-sOutputFile=$Outfile -sDEVICE=pdfwrite -dDEVICEWIDTHPOINTS=$xwidth " . 
 		"-dDEVICEHEIGHTPOINTS=$ywidth $Psfile.tmp";
 	    verbosesys $com;
+	    if ($LatexRun == TRUE ) {
+		$com = "$PdfToIpe $Pdffile &> /dev/null";
+		verbosesys $com;
+		$com = "$IpeToIpe -pdf $Ipefile &> /dev/null";
+		verbosesys $com;
+	    }
 	}
-    }
+    }  # end   if ( $WriteBBox == 1 or $PSFormat eq  'eps' or $PSFormat eq  'pdf' )
     else {
 	$Outfile = $Psfile unless defined $Outfile;
 	verbose "Writing plain PostScript file $Outfile";
 	print_ps_file($Outfile);
     }
     verbosesys "rm -f $Psfile" . ".tmp";
-    signal_viewer();
+    signal_viewer($Outfile);
     # end of program
 }
 
@@ -4695,6 +5170,11 @@ sub make_prolog {
 
   my ($keycolorboxes_com,
       $drawkey_com,$trihex_com,$alltrihex_com,$landscape_com,$font_declarations_com) = @_;
+
+  my  $lengthofside =  $LengthOfSide * ($Xhi-$Xlo)/($DXhi-$DXlo); # correct scaling ?
+  my  $xlengthofside =  $XLengthOfSide * ($Xhi-$Xlo)/($DXhi-$DXlo);
+  my  $ylengthofside =  $YLengthOfSide * ($Yhi-$Ylo)/($DYhi-$DYlo);
+
 
 my $string;
 
@@ -4711,6 +5191,8 @@ $DocTypeLine$BoundingBox$PageSize$TranslatePlot
 % why do I need a namespace ?
 %/PolyDensDict 200 dict def
 %PolyDensDict begin
+
+$WhiteBox
 
 /in {72 mul} def  %  convert points to inches
 
@@ -4734,9 +5216,9 @@ $landscape_com
 /xbuf $Xbuf def
 
 % length in plot units of poly side
-/polysidelength $LengthOfSide def
-/xpolysidelength $XLengthOfSide def
-/ypolysidelength $YLengthOfSide def
+/polysidelength $lengthofside def
+/xpolysidelength $xlengthofside def
+/ypolysidelength $ylengthofside def
 % how much to rotate polygons
 /polyrotation $Rotation def
 /polyrotationtwo $Rotation2 def
@@ -5028,7 +5510,7 @@ $font_declarations_com
    0 0 moveto
    30 rotate
    3 { % repeat
-    0 1.5  $LengthOfSide mul  //xbhi //bwidth add    {
+    0 1.5  $lengthofside mul  //xbhi //bwidth add    {
        dup
        0 moveto
        0 //ybhi //bheight add rmoveto
@@ -5211,52 +5693,6 @@ $font_declarations_com
   grestore
 } def
 
-% not used
-/drawXaxislabel {
- /Xlabel exch def
- gsave
- newpath
- axislabelfont setfont
- 0 setgray
- xbhi xblo add  2 div
- yblo framewidth $XAxisLabelOffset mul sub
- moveto
- Xlabel stringwidth  pop neg 2 div 0 rmoveto
- Xlabel show
- grestore
-} def
-
-% not used
-/drawYaxislabel {
- /Ylabel exch def
- gsave
- newpath
- axislabelfont setfont
- 0 setgray
- xblo framewidth $YAxisLabelOffset mul sub
- ybhi yblo add  2 div
- moveto
- Ylabel stringwidth  pop neg  0 rmoveto
- Ylabel show
- grestore
-} def
-
-% not used
-/drawYaxislabelRotated {
- /Ylabel exch def
- gsave
- newpath
- axislabelfont setfont
- 0 setgray
- xblo framewidth $YAxisLabelOffset mul sub
- ybhi yblo add  2 div
- moveto
- 90 rotate
- Ylabel stringwidth  pop neg 2 div (A) stringwidth pop 2 div rmoveto
- Ylabel show
- grestore
-} def
-
 # Draw a number in scientific notation.
 # Uses a multiplication symbol from the symbol font
 /drawscinot {
@@ -5340,7 +5776,8 @@ $font_declarations_com
 polyscale polyscale scale
 polylinewidth setlinewidth
 
-% clip off data that lies outside our range
+# clip off data that lies outside our range
+# does not seem to have an effect on efficiency when not clipping
 gsave
 newpath
 xlo ylo moveto xlo yhi lineto xhi yhi lineto
@@ -5419,17 +5856,19 @@ axis end points.
 
 =cut
 
+
 sub auto_ticks {
     my ($data_low, $data_high, $bound_low, $bound_high, $tick_interval, $magic_arr,
 	$division_arr )
 	=@_;
 
-    my ( $rng, $intervals, $FALSE,  $delta, $auto_lower, $auto_upper,
+# check whether TRUE and FALSE mean the same here as in the rest of the code
+    my ( $rng, $intervals, $atFALSE,  $delta, $auto_lower, $auto_upper,
 	 $start,$end,@ticks, $is_auto_low, $is_auto_high,$lower,$upper);
 	 
     my ($i);
 
-    $FALSE = ( 1 == 0 );
+    $atFALSE = ( 1 == 0 );
 
     $is_auto_low  = ($bound_low  eq 'auto');
     $is_auto_high = ($bound_high eq 'auto');
@@ -5475,7 +5914,7 @@ sub auto_ticks {
 	$tick_interval = tick_intervals( $lower, $upper, $intervals );
 #	print STDERR "chose $tick_interval\n";
 	if ($is_auto_low and $is_auto_high) {
-	    $is_auto_low = $is_auto_high = $FALSE;
+	    $is_auto_low = $is_auto_high = $atFALSE;
 	    $lower = $tick_interval * floor( $lower / $tick_interval );
 	    while ( ((abs( $lower ) >= $tick_interval) and
 		     (($lower + $tick_interval * ($intervals - 1)) >= $upper))) {
@@ -5686,7 +6125,6 @@ sub  tick_intervals {
     }
     @tmparray = ( 2.0, 1.25, 2.0, 2.0 );
     for(;;) {
-#	print "Entered for\n";
 	$result = $interval * $factor;
 	if ( ((floor( $data_low / $result ) * $result) + ($intervals * $result) >=
 	      $data_high)) {
@@ -5716,8 +6154,8 @@ sub auto_bounds {
 =cut
 
 
-    return ( calc_bound( $data_low,  $tick_interval, $FALSE ),
-             calc_bound( $data_high, $tick_interval, $TRUE  ) );
+    return ( calc_bound( $data_low,  $tick_interval, FALSE ),
+             calc_bound( $data_high, $tick_interval, TRUE  ) );
 }       
 
 #--------------------------------------------------------------------------------
@@ -5782,7 +6220,7 @@ quickly.
 =cut
 
 sub make_viewer_opts {
-    if ($ViewerScale == 1) {
+    if ($ViewerScale == 1 or $Viewer eq 'xpdf' ) {
 	return '';
     }
     my $opts = $ViewerScaleOpt;
@@ -5792,6 +6230,7 @@ sub make_viewer_opts {
 
 sub launch_viewer {
     my ($args) = @_;
+    return if $Viewer eq 'xpdf';
     if (not defined $args ) {
 	herror("No output file to view.");
 	return();
@@ -5807,7 +6246,7 @@ sub launch_viewer {
     my $opts = make_viewer_opts();
     if (!$pid) {  # child
 #	setsid or die "Can't start a new session: $!"; # does nothing.
-	exec("$Viewer $opts $args"); # no &, else we get pid of shell
+	exec("$ViewerGvCmd $opts $args"); # no &, else we get pid of shell
 	die "unable to exec: $!";
     }
     $ViewerPid = $pid;
@@ -5815,19 +6254,28 @@ sub launch_viewer {
 }
 
 sub signal_viewer {
-    if (defined $ViewerPid) {
-	my $exists = kill( 0, $ViewerPid); # check if viewer killed somehow.
-	return unless $exists;
-	verbose "signaling viewer: kill -1 $ViewerPid";
-	system "kill -1 $ViewerPid";
+    my ($args) = @_;
+    if ( $Viewer eq 'xpdf' ) {
+	my $opts = make_viewer_opts();
+	system("$ViewerXpdfCmd $opts $args &");
+#	system($ViewerXpdfCmd, $opts, $args);
+	return;
+    }
+    else {
+	if (defined $ViewerPid) {
+	    my $exists = kill( 0, $ViewerPid); # check if viewer killed somehow.
+	    return unless $exists;
+	    verbose "signaling viewer: kill -1 $ViewerPid";
+	    system "kill -1 $ViewerPid";
+	}
     }
 }
 
 sub do_examples {
     setup_example_plots();
     do_example($ExampleNumber,'noview');
-    if (defined $Display and $Display == $TRUE ) {
-	verbose "$Viewer $Outfile";
+    if (defined $Display and $Display == TRUE ) {
+	verbose "$ViewerGvCmd $Outfile";
 	launch_viewer($Outfile);
     }
 }
@@ -5856,31 +6304,41 @@ sub do_all_examples {
 
 sub check_viewer {
 #    print  "CHECKING VIEWWER!!\n";
-#    print "display $Display\n";
-#    print "nodisplay $NoDisplay\n";
 #    print "pid $ViewerPid\n";
 #    print "viewerstarted $ViewerStarted\n";
-    if (((defined $Display and $Display == $TRUE) or 
-	 $RunShell == $TRUE) and  (not defined $NoDisplay or $NoDisplay == $FALSE)) {
+    return if $Viewer eq 'xpdf'; # this should be checked in a func.
+    if (defined $Display and $Display == TRUE) {
 	if( defined $ViewerPid  and (
-          defined $ViewerStarted or (defined $ViewerStarted and $ViewerStarted == $FALSE))) {
+          defined $ViewerStarted or (defined $ViewerStarted and $ViewerStarted == FALSE))) {
 	    my $exists = kill( 0, $ViewerPid); # check if viewer killed somehow.
 #	    print "exists pid : $exists\n";
 	    return if $exists;
 	}
 	launch_viewer($Outfile);
-	$ViewerStarted = $TRUE;
+	$ViewerStarted = TRUE;
     }
 }
 
+sub arg_check {
+    my($name,$test_result) = @_;
+    croak "wrong number of arguments to $name" unless $test_result;
+}
+
 sub plot_or_replot {
-    my ($inf) = @_;
-    if ( $inf =~ /\w/ ) {
-	$Infile = $inf; $HaveData = $FALSE;
+    arg_check( "plot_or_replot", @_ == 1);
+    my ($input_filename) = @_;
+    if ( $input_filename =~ /\w/ ) {
+	$Infile = $input_filename; $HaveData = FALSE;
+	$Outfile = undef;  # not sure if this will break something else
     }
     my $res = 1;
-    $res = read_data($Infile) unless defined $HaveData and $HaveData == $TRUE;
-    return undef unless defined $res;
+    if ( defined $HaveData and $HaveData == TRUE) {
+	set_window_coordinates();
+    }
+    else {
+	$res = read_data($Infile);
+	return undef unless defined $res;
+    }
     do_norming();
     all_scale_transform() if $UseColTrans == 1;
     set_output_file_names($Infile);
@@ -5892,14 +6350,14 @@ sub plot_or_replot {
 
 sub process_command_line_files {
     foreach $Infile ( @ARGV ) {
-	$HaveData = $FALSE;
+	$HaveData = FALSE;
 	read_data($Infile);
 	plot_or_replot($Infile);
     }
 }
 
 
-if ( $RunShell == $TRUE ) {
+if ( $RunShell == TRUE ) {
     Shell::run_shell();
 }
 elsif (defined $ExampleNumber) { do_examples(); }

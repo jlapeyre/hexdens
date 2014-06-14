@@ -24,7 +24,7 @@ GNU General Public License for more details.
 
 package Tridens;
 
-our $VERSION = '0.017';
+our $VERSION = '0.18';
 # use POSIX module for log10 and floor functions
 use POSIX;
 use Pod::Simple::Text; # for processing the docs
@@ -59,6 +59,8 @@ use Text::ParseWords;
 #  * changed dot to x in sci notation
 #  * correctly detect if gv processs is killed
 # TODO
+# Aspect ratio is dependent on units. So this is useless unless
+# data is fortuitously in a range to make a nice plot!!
 # many arguments are not checked for sanity or correctness or existence.
 # Ability to save interactively set options. Use Dumper, I suppose.
 # catch ctrl c in demo mode
@@ -66,7 +68,7 @@ use Text::ParseWords;
 # add ability to write tick labels with numbers multiplied by powers
 # of ten, so that the power of ten can be put into the label
 # also ability to to sci notation on the tick labels.
-# plot is always square
+
 
 =begin comment
 
@@ -870,8 +872,8 @@ sub run_shell {
 	    foreach (@ARGV) { $_ = '-' . $_ unless /^\-/;} # prepend dash
 	    my %h = (  );
 	    GetOptions( \%h, @Tridens::Optlist );
-	    Tridens::first_process_command_line_options(%h);return undef;
-	    return undef;
+	    Tridens::first_process_command_line_options(%h);
+	    Tridens::process_command_line_options(%h);return undef;
     };
     my %comacts  = (
 	'plot' =>  sub {$_[0] =~ s/^\s*[\'\"]//;$_[0] =~ s/[\'\"]\s*$//; #remove literal quotes
@@ -941,13 +943,19 @@ sub run_shell {
     }
 
     my @coms = sort keys %comacts;
-    my $term = Term::ReadLine->new('tridens');
-    $term->Attribs->{completion_query_items} = 200;
-    $term->Attribs->{completion_function} = sub {
+    my $term = undef;
+    my $OUT;
+    if ($Tridens::UseReadline == $TRUE) {
+	$term = Term::ReadLine->new('tridens');
+	$term->Attribs->{completion_query_items} = 200;
+	$term->Attribs->{completion_function} = sub {
         my ($text, $line, $start) = @_;
 	# print("<<$text>><<$line>><<$start>>\n");
-	if ($line =~ /^\s*(set|show|se|sh|sho)\s+\w*$/) {
-	    return @Tridens::Optlistnames;
+	if ($line =~ /^\s*(set|se)\s+\w*$/) {
+	    return @Tridens::Optlistnames_set;
+	}
+	if ($line =~ /^\s*(show|sh|sho)\s+\w*$/) {
+	    return @Tridens::Optlistnames_show;
 	}
 	if ($line =~ /^\s*\w*$/) {
 	    return keys %comacts;}
@@ -956,10 +964,12 @@ sub run_shell {
         if ($line =~ /^\s*(h|he|hel|help)\s+\w*$/) {
 	    return @Tridens::HelpTopics;}
        };
-    my $prompt = "tridens> ";
+
 # using term->OUT may be useful, but it prevents user from printing to STDOUT
 #    my $OUT = $term->OUT || \*STDOUT;
-    my $OUT = \*STDOUT;
+	$OUT = \*STDOUT;
+    }
+    my $prompt = "tridens> ";
     my ($input);
     my @batch_lines;
     print "tridens v$VERSION  Type 'help'.\n";
@@ -974,7 +984,9 @@ sub run_shell {
 	    @batch_lines = `cat $Tridens::BatchFile`;
 	}
     }
-    while ( scalar(@batch_lines)> 0 or defined ($input = $term->readline($prompt)) ) {
+#    while ( scalar(@batch_lines)> 0 or defined ($input = $term->readline($prompt)) ) {
+    for(;;) {
+	if ($Tridens::UseReadline == $FALSE) { $term = undef; }
 	my $cflag = 0;
 	$exit = $Tridens::FALSE;
 	if ( @batch_lines>0 ) {
@@ -982,6 +994,14 @@ sub run_shell {
 	    chomp($input);
 	    print "$prompt$input\n";	    
 	}
+	if ( defined $term ) {
+	    $input = $term->readline($prompt);
+	}
+	else {
+	    print $prompt;
+	    $input = <>;
+	}
+	last unless defined $input;
 	my $tinp = $input;
 	my $res;
 	if ( $tinp =~ s/^\s*(\!)|((\w+)(\s+|$))// ) {  # check for a command in first word
@@ -1022,7 +1042,7 @@ our ($TRUE,$FALSE);
 
 our ($OptionArg); # kludge. use this var temporarily for storing value when setting option
 
-our ($ParameterList, $PlotWidth, $LandScape, $Xmin,
+our ($ParameterList, $PlotWidth, $AspectRatio, $LandScape, $Xmin,
  $Xmax, $Ymin, $Ymax, $XTickStart, $XTickInt,
  $YTickStart, $YTickInt, $ZeroAbs, $Pow2Eps,
  @MagicIntervals, @Divisions, $ColorMap, $Hue, $XAxisLabel,
@@ -1033,7 +1053,8 @@ our ($ParameterList, $PlotWidth, $LandScape, $Xmin,
  $PSFormat, $BoundingBoxPad, $TTick, $BTick, $LTick, $RTick,
  $PolyBorder, $TriHexDraw, $LatticeGray, $NumberPoly,
  $NumberPolyDig, $NumberPolySciLim, $NumberPolyZero,
- $NumberPolyGray, $NumberPolySciScale, $XAxis, $YAxis,
+ $NumberPolyGray, $NumberPolySciScale,
+ $LatexNumbers, $DotForTimes, $XAxis, $YAxis,
  $DataNorming, $DataTransformPower, $UseColTrans,
  $ColorMapHi, $ColorMapLo, $ShowNormalized, $DrawKey,
  $NumKeyBars, $KeyLabelSkip, $KeySepGray,
@@ -1048,16 +1069,19 @@ our ($ParameterList, $PlotWidth, $LandScape, $Xmin,
  $TickLengthScale, $TickFontScale, $KeyFontScale,
  $AxisFontScale, $NumberPolyFontScale, $ExponentScale,
  $WriteBBox, $PostScriptInterpreter, $BBoxCommand,
- $GridDataFile, $RunShell);
+ $GridDataFile, $RunShell,$UseReadline);
 
 our ($Outfile, $ExampleNumber, $DoAllExamples, $FontScale, $Subscale, $Supscale, $SSupscale,
 $Viewer, $ViewerScaleOpt, $ViewerScale, $PostScriptInterpreterOptions, $FontPath, $Display,
   $NoDisplay, $HaveData, $ViewerStarted, $ViewerPid, $Pi, $E, @Optlist, @Optlist_non_interactive,
-    @Optlist_interactive, @Optlistnames,
+    @Optlist_interactive, @Optlistnames_set,@Optlistnames_show,
 $BatchFile, $Browser, $PdfLatex, %RgbCodes, @RgbNames,
 $NumberOfExamplePlots, %Symcodes, @Symcodelist, %Symaliases, @Symaliaslist, $SScriptScale );
 
+our ($InterruptSent);
+
 our (%FontList);
+
 
 our ($ShortHelp);
 
@@ -1088,6 +1112,8 @@ $RunShell = $FALSE;
 # Desired width of plot in inches, excluding key and
 # tick labels.
 $PlotWidth = 5;
+
+$AspectRatio = 1;
 
 #  Set to one to plot landscape
 $LandScape = $FALSE;
@@ -1398,6 +1424,17 @@ $Browser = 'firefox';
 # command to make pdf from latex
 $PdfLatex = 'pdflatex';
 
+# If true, print LaTeX expressions for numbers that can be processed
+# by another program, such as ipe. If FALSE we use our own routines
+# to write scientific notation
+$LatexNumbers = $TRUE;
+
+# draw a dot rather than a times symbol for multiplication
+$DotForTimes = $FALSE;
+
+# whether to use readline. If false, then just read from a simple loop
+$UseReadline = $TRUE;
+
 ##########
 # Probably never need to change the things below.
 
@@ -1489,45 +1526,52 @@ EOSHH
 
 # some of these are not used interactively. Others are not used interactively
 # via 'set' but are promoted to 'commands' in the hash %comacts.
-    @Optlist_non_interactive = (
-       'h','v','i', 'listcolors:i', 'findcolors:s', 'listsymbols:i', 'listfonts',
-
-	);
+# These can be used interactively, but dont show up in completion lists
+# and so forth for 'show' and 'set' since they have no vars associated with
+# them. So this list is actually misnamed.
+    @Optlist_non_interactive = ( 'h','v','i',
+    'listcolors:i', 'findcolors:s', 'listsymbols:i',
+    'listfonts', 'man', 'mandoc', 'htmldoc','html','pdfdoc',
+    'textdoc', 'paramfile','version' );
 
 # removed because broken: 'hex'
 # these are used both interactively and on the command line
-    @Optlist_interactive = (
-          'version',  'man', 'mandoc', 'htmldoc','html','pdfdoc',
-              'textdoc', 'paramfile',
-	  'cmhue', 'cmgray', 'cmsaturation:f', 'cmbrightness:f', 'cmsatbright:f',
-           'title:s', 'offsettitle:s', 'numberpoly',
-	   'square',  'tri' , 'circle', 'ps', 'eps', 'pdf' , 'sidelength:s',
-           'xsidelength:s','ysidelength:s',
-           'sameunits','nosameunits',
-	   'autolength', 'noautolength',
-	   'portrait', 'landscape', 'plotwidth:f', 'xlabel:s', 'ylabel:s',
-          'rotylabel',    'norotylabel',
-           'polyborder', 'nopolyborder', 'xaxis','yaxis', 'noxaxis', 'noyaxis','noaxis','axis',
-   	 'usepower', 'uselinear' , 'power:f',  'lattice', 'latticegray:f',
-         'cmlo:f', 'cmhi:f', 'shownorm', 'showraw', 'keynbars:i', 'keylabelskip:i', 'key', 'nokey',
-           'xbuf:f', 'ybuf:f', 'buf:f', 'saturation:f', 'brightness:f', 'hue:f',
-	   'xmin:s', 'xmax:s', 'ymin:s', 'ymax:s', 'grided','nogrided',
-	    'ex:i', 'demo:i', 'outfile:s', 'fontscale:f', 'display', 'nodisplay', 'batch:s',
-           'bbpad:i', 'subscale:f', 'supscale:f', 'ssupscale:f',
-	'explim:i','keydigits:i', 'viewerpid:i',
-	'ticklabeloffset:f','polylinew:f','framelinew:f','keylinew:f','keyexpraise:f',
-	 'keywidth:f','keyheight:f','keyxoffset:f','keyyoffset:f',
-         'ticklinew:f', 'axislinew:f',
-	'ticklength:f','tickfontscale:f','keyfontscale:f','axisfontscale:f','exponentfontscale:f',
-	'numberpolyfontscale:f', 'viewerscale:f',
-	'font:s'
-	);
+   @Optlist_interactive = ( 
+   'latexnumbers',   'nolatexnumbers', 'dotfortimes','nodotfortimes',
+    'nousereadline', 'cmhue',
+   'bbpad:i', 'subscale:f', 'supscale:f', 'ssupscale:f',
+   'buf:f', 'saturation:f', 'brightness:f', 'hue:f',
+   'cmhi:f', 'shownorm', 'showraw', 'keynbars:i',
+   'cmsatbright:f', 'title:s', 'offsettitle:s',
+   'explim:i','keydigits:i', 'viewerpid:i', 'fontscale:f',
+   'display', 'nodisplay', 'batch:s', 'grided','nogrided',
+   'ex:i', 'demo:i', 'outfile:s', 'keylabelskip:i', 'key',
+   'nokey', 'xbuf:f', 'ybuf:f',
+   'keywidth:f','keyheight:f','keyxoffset:f','keyyoffset:f',
+   'nopolyborder', 'xaxis','yaxis', 'noxaxis',
+   'noyaxis','noaxis','axis', 'usepower', 'uselinear' ,
+   'numberpoly', 'square', 'tri' , 'circle', 'ps', 'eps',
+   'numberpolyfontscale:f', 'viewerscale:f', 'font:s', 'pdf'
+   , 'sidelength:s', 'xsidelength:s','ysidelength:s',
+   'portrait', 'landscape', 'plotwidth:f', 'xlabel:s',
+   'power:f', 'lattice', 'nolattice', 'latticegray:f', 'cmlo:f',
+   'sameunits','nosameunits', 'autolength', 'noautolength',
+   'ticklabeloffset:f','polylinew:f','framelinew:f','keylinew:f','keyexpraise:f',
+   'ticklength:f','tickfontscale:f','keyfontscale:f','axisfontscale:f','exponentfontscale:f',
+   'ticklinew:f', 'axislinew:f', 'xmin:s', 'xmax:s',
+   'ymin:s', 'ymax:s', 'ylabel:s', 'rotylabel',
+   'norotylabel', 'polyborder', 'cmgray', 'cmsaturation:f',
+   'cmbrightness:f');
 
      @Optlist = (@Optlist_non_interactive,@Optlist_interactive);
 
-# use this for tab completion
-     @Optlistnames = @Optlist_interactive;
-     foreach (@Optlistnames) { s/[\:\=]\w+//} # strip type symbols
+# tab completion with 'show'
+     @Optlistnames_show = (@Optlist_non_interactive,@Optlist_interactive);
+     foreach (@Optlistnames_show) { s/[\:\=]\w+//} # strip type symbols
+
+# tab completion with 'set'
+     @Optlistnames_set = @Optlist_interactive;
+     foreach (@Optlistnames_set) { s/[\:\=]\w+//} # strip type symbols
 
     my @optlist2 = (
 	'generatetest', 'test'
@@ -1560,7 +1604,8 @@ EOSHH
 # DEFER should maybe be replaced with something better.
 # DOUNDEF: if no argument is given then variable is set to undef
    our %OptHandlers = (
-	cmhue => {VAR => 'ColorMap', VAL => '"hue"', VALTYPE => 'scalar'},
+
+       cmhue => {VAR => 'ColorMap', VAL => '"hue"', VALTYPE => 'scalar'},
 	cmgray => {VAR => 'ColorMap', VAL => '"gray"', VALTYPE => 'scalar'},
 	cmsaturation => [ {VAR => 'ColorMap', VAL => '"saturation"', VALTYPE => 'scalar'},
 		       {VAR => 'Hue', OPTVAL => 1, OPTDEFAULT => '$Hue'  }], # trick to leave Hue unchanged
@@ -1570,7 +1615,8 @@ EOSHH
 		       {VAR => 'Hue', OPTVAL => 1, OPTDEFAULT => '$Hue'  }],
 	numberpoly => {VAR => 'NumberPoly', VAL => 1, VALTYPE => 'bool'},
 	autolength => {VAR => 'AutoLength', VAL => 1, VALTYPE => 'bool'},
-	noautolength => {VAR => 'AutoLength', VAL => 0, VALTYPE => 'bool'},
+ 	 noautolength => { VAR => 'AutoLength', VAL => 0, VALTYPE => 'bool'},     
+        nousereadline => { VAR => 'UseReadline', VAL => 0, VALTYPE => 'bool' },
 	landscape =>{VAR => 'LandScape', VAL => 1, VALTYPE => 'bool'},
 	portrait =>{VAR => 'LandScape', VAL => 0, VALTYPE => 'bool'},
 	polyborder =>{VAR => 'PolyBorder', VAL => 1, VALTYPE => 'bool'},
@@ -1603,6 +1649,7 @@ EOSHH
 	yaxis =>{VAR => 'YAxis', VAL => 1, VALTYPE => 'bool'},
 	noyaxis =>{VAR => 'YAxis', VAL => 0, VALTYPE => 'bool'},
 	lattice =>{VAR => 'TriHexDraw', VAL => 1, VALTYPE => 'bool'},
+	nolattice =>{VAR => 'TriHexDraw', VAL => 0, VALTYPE => 'bool'},
 	key =>{VAR => 'DrawKey', VAL => 1, VALTYPE => 'bool',
               HELP => ' (nokey) enables (disables) drawing the plot key (color to value key).'},
 	nokey =>{VAR => 'DrawKey', VAL => 0, VALTYPE => 'bool'},
@@ -1617,6 +1664,10 @@ EOSHH
 	shownorm =>{VAR => 'ShowNormalized', VAL => 1, VALTYPE => 'bool'},
 	rotylabel =>{VAR => 'RotateYAxisLabel', VAL => 1, VALTYPE => 'bool'},
 	norotylabel =>{VAR => 'RotateYAxisLabel', VAL => 0, VALTYPE => 'bool'},
+	latexnumbers=>{VAR => 'LatexNumbers', VAL => 1, VALTYPE => 'bool'},	  
+	nolatexnumbers=>{VAR => 'LatexNumbers', VAL => 0, VALTYPE => 'bool'},	  
+	dotfortimes=>{VAR => 'DotForTimes', VAL => 1, VALTYPE => 'bool'},	  
+	nodotfortimes=>{VAR => 'DotForTimes', VAL => 0, VALTYPE => 'bool'},	  
 	pdf =>{VAR => 'PSFormat', VAL => '"pdf"', VALTYPE => 'scalar', SETSUB=> \&change_ps_suffix},
 	eps =>{VAR => 'PSFormat', VAL => '"eps"', VALTYPE => 'scalar', SETSUB=> \&change_ps_suffix},
 	ps =>{VAR => 'PSFormat', VAL => '"ps"', VALTYPE => 'scalar', SETSUB=>  \&change_ps_suffix},
@@ -1674,7 +1725,8 @@ EOSHH
 		    {VAR => 'AutoLength', VAL => 0, VALTYPE => 'bool'} ],
 	nogrided =>  {VAR => 'GridDataFile', VAL => 0, VALTYPE => 'bool'},
 	viewerpid =>{VAR => 'ViewerPid', OPTVAL => 1},
-	font => { VAR => 'Font', OPTVAL => 1, VALTYPE => 'string', DEFER => 1, SETSUB=> \&choose_font_names}
+       font => { VAR => 'Font', OPTVAL => 1, VALTYPE => 'string', DEFER => 1, SETSUB=> \&choose_font_names},
+
 	
 );  # end our %OptHandlers = (
 
@@ -1690,6 +1742,7 @@ foreach my $okey (keys %OptHandlers) {
 # print all parameters, optionally, those matching $pat
 sub print_all_parameters {
     my ($pat) = @_;
+    chomp($pat);
     my @okeys = keys %OptHandlers;
     my %invopt;
     foreach my $okey (@okeys) { # make inverted hash of OptHandlers vars
@@ -2035,6 +2088,15 @@ our $BoundingBox = '';
 # for postscript
 our $PageSize = '';
 our $TranslatePlot = '';
+
+sub INT_handler {
+    $InterruptSent = 1;
+}
+
+# disable this for now
+#$SIG{'INT'} = \&INT_handler;
+
+$InterruptSent = 0;
 
 # debugging routine.
 sub deb {
@@ -2957,16 +3019,39 @@ sub real_show {
     if ($flag == 0) {
 	return "($s) show";
     }
-    else {  return sci_not($s); }
+    else { 
+	if ($LatexNumbers == 1) {
+	    return sci_not_latex($s);
+	}
+	else {
+	    return sci_not_native($s);
+	}
+    }
 }
 
 # scientific notation with superscript
-sub sci_not {
+# TODO, give option for this
+sub sci_not_native {
     my $n = shift;
     my ($mant,$exp) = split('e',$n);
     my $pe = sprintf("%d",$exp);
-    return "($mant) ($pe) drawscinot";
+    if ( $DotForTimes == $TRUE) {
+	return "($mant) ($pe) drawscinotdot";
+    }
+    else {
+	return "($mant) ($pe) drawscinot";
+    }
 }
+
+# This one uses latex , used when working with ipe.
+# But ipe has a bug that causes a crash when using this.
+sub sci_not_latex {
+    my $n = shift;
+    my ($mant,$exp) = split('e',$n);
+    my $pe = sprintf("%d",$exp);
+    return '($' . $mant . ' \\\\times  10^{' .$pe . '}$) show';
+}
+
 
 # This draws the polygon. square, triangle, hexagon
 sub pshex {
@@ -3587,6 +3672,7 @@ $xnssupshift = $fontsize / $rfontsize * .05;
 $xssupshift = - $fontsize / $rfontsize * .02;
 $subshift = - $fontsize / $rfontsize * .17;
 $nsubshift = -$subshift;
+# ERROR !? should be rfontsize below ?
 $xsubshift = - $fontsize/$fontsize * .01;
 
 
@@ -4392,6 +4478,7 @@ sub create_interspersed_postscript {
     $keycolorboxes_com = $drawkey_com = '';
     $keycolorboxes_com = make_key_color_boxes() if $DrawKey == 1;
     $drawkey_com = 'drawkey' if $DrawKey == 1;
+    $trihex_com = $alltrihex_com = '';
     if ( $TriHexDraw ==  1 or  $TriHexDraw ==  2) {
 	$trihex_com = 'pcx pcy trihex';
     }
@@ -4694,7 +4781,7 @@ $landscape_com
 
 % units of framewidth
 /bw { framewidth mul } def
-/bh { frameheight mul } def
+%/bh { frameheight mul } def % not used
 
 % plotwidth and framewidth both measure the same
 % length, but in different units. plotwidth is in
@@ -5754,8 +5841,13 @@ sub do_all_examples {
 #	system "cp $Outfile allexampleout";
 	if ($i==1) {launch_viewer('allexampleout');}
 	if ( $DoAllExamples == 0 ) {
-	    print "example $i: hit enter\n";
-	    <>;
+	    print "example $i: hit enter (or q to quit)\n";
+#	    if ( $InterruptSent == 1) {
+#		$InterruptSent = 0;
+#		return;
+#	    }
+	    my $line = <>;
+	    return if $line =~ /q/;
 	}
 	else { sleep $DoAllExamples;}
     }

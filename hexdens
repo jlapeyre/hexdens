@@ -29,7 +29,7 @@ our $VERSION = '0.21';
 
 # use POSIX module for log10 and floor functions
 use POSIX;
-use Pod::Simple::Text;    # for processing the docs
+use Pod::Text;    # for processing the docs
 use Term::ReadLine;
 use Text::ParseWords;
 use Text::Wrap;
@@ -626,7 +626,7 @@ print short(ish) help message.
 
 B<-man> 
 view long documentation as unix man page. Broken on
-some platforms (eg, BSD), but -mandoc might still work.
+some platforms (eg, BSD), but B<-mandoc> might still work.
 
 B<-mandoc> 
 print documentation as man page to file hexdens.1
@@ -718,10 +718,11 @@ B<-latticegray>  I<GRAYVALUE>
 shade for the lattice lines if drawn
 
 B<-xmin>,  B<-xmax,-ymin,-ymax>  I<FLOAT>  
-set boundaries of plot area, overriding automatic boundaries.
-If I<FLOAT> is ommitted, then the corresponding boundary is once again set automatically.
-If these are set interactivly, you must reread the file with the "replot" command in order for
-them to take effect. (Or use B<read> and then B<plot>.)
+set boundaries of plot area, overriding automatic boundaries.  If
+I<FLOAT> is ommitted, then the corresponding boundary is once again
+set automatically.  If these are set interactivly, you must reread the
+file with the "replot" command in order for them to take effect. (Or
+use B<read> and then B<plot>.)
 
 =head2      Density to Color map:
 
@@ -992,6 +993,11 @@ B<-plotwidth> I<PLOTWIDTH>  (default 12)
 the width of the plotted data area in centimeters. If the plot
 is too big for the page and eps or pdf are requested, then the plot is automatically rescaled
 to fit on the page.
+
+B<-viewer> I<VIEWERNAME> 
+(default C<xpdf>) Name of the viewer program used to view plots interactively.
+This may be one of C<xpdf> and C<gv>. In interactive mode, C<set viewer TAB TAB>
+may show a choice of viewers.
 
 B<-viewerscale> I<SCALE> 
 If using gv as a viewer, scale (that is, magnify) the viewing area by
@@ -2148,7 +2154,7 @@ $ViewerGvCmd = 'gv ';
 # following two only work now with gv
 $ViewerScaleOpt = ' -scale=%n -spartan ';
 
-$ViewerScale = 2.0;
+$ViewerScale = 1.0;
 
 $PdfToIpe = 'pdftoipe -literal ';
 
@@ -2744,16 +2750,22 @@ EOSHH
     }
 
 
+
+# Don't use Pod::Simple::Text
+# It does not format.
+# Pod::Text is still giving wrong results, it is
+# Need to make new paragraph for text in order for parser
+# to reflow it.
    sub convert_pod_fragment_to_text {
        my ($string_fragment) = @_;
-#       deb "conv: $string_fragment";
        my $ostr;
-       my $parser = Pod::Simple::Text->new();
+       my $parser = Pod::Text->new();
        $parser->output_string( \$ostr );
-       my $docs = "=head1\n" . $string_fragment . "\n";
-       $parser->parse_string_document($docs);
+       my $docstring = "=head1\n" . $string_fragment . "\n";
+       $parser->parse_string_document($docstring);
        $parser = undef;
        return $ostr;
+#       return $docstring;
    }
 
 # note that the followin relies on a particular format of the pod
@@ -2775,6 +2787,9 @@ EOSHH
 # to be formatted incorrectly. This does not occur if we convert pod fragments
 # to text at the end in a loop, rather whan while reading the file.
 # Mysterious, I don't know why it fixes the bug.
+#
+# Note that there is code in this sub that explicitly treats certain
+# doc entries. Be careful.
 #
 # $option is used for both options and commands
     sub setup_interactive_help {
@@ -2807,18 +2822,22 @@ EOSHH
 		if ($line =~ /^B<([^>]+)/ and $help_type eq 'options') {
 		    $option = $1;
 		    $line =~ s/B<no$option>//; # remove boolean negation option
-		    my $comf = FALSE;
+		    my $command_flag = FALSE;
 		    foreach ( qw( listcolors findcolors listfonts listsymbols
                               html man ex ) ){
-			if( $option eq $_ ) { $comf = TRUE ;last}
+			if( $option eq $_ ) { $command_flag = TRUE ;last}
 		    }
-		    if ($comf == TRUE) {
-		        $line = '[command] ' . $line . ' : ';
+		    if ($command_flag == TRUE) {
+#		        $line = '[command] ' . $line . ' : ';
+		        $line = '[command] ' . $line . "\n";
 		    }
 		    else {
 			my $us = '';
 			$us = ' (unset) ' if (exists $BoolVarList{$option} );
-			$line = "[option] set $us" . $line . ' : ';
+#			$line = "[option] set $us" . $line . ' : '; # ugly this way
+#                        New paragraph gives correct pod formatting: so \n
+			$line = "[option] set $us" . $line . "\n";
+#			$line = "[option] set $us" . $line . '';
 		    }
 		}
 		if ($line =~ /^=item B<([^>]+)>/ and $help_type eq 'commands') {
@@ -2829,7 +2848,10 @@ EOSHH
 		    <$fh>;
 		    $option = $1;
 		    $line =~ s/=item//;
-		    $line = '[command] ' . $line . ' : ';
+#		    $line = '[command] ' . $line . ' : '; # this does not look good.
+#                   New paragraph gives correct pod formatting: so \n
+		    $line = '[command] ' . $line . "\n";
+#		    $line = '[command] ' . $line . '';
 #                    deb "option: $option, help: $line";
 		}
 		if ($option ne '' ) {
@@ -4363,6 +4385,7 @@ sub do_example {
     $ViewerPid = $$ if $Viewer eq 'xpdf' and not defined $ViewerPid;
     $ViewerPid++ unless $HoldView == TRUE;
     $args .= " -viewerpid $ViewerPid " if defined $ViewerPid;
+    $args .= " -viewer $Viewer ";
     my $dis = '';
     $dis = ' -dis ' if $Display == TRUE;
     my $com = "$ScriptName $dis $args -outfile $outbase $name";
@@ -7850,6 +7873,7 @@ sub launch_viewer {
 sub signal_viewer {
     my ($args) = @_;
     return unless defined $Display and $Display == TRUE;
+#    deb "Viewer $Hexdens::Viewer";
     if ( $Viewer eq 'xpdf' ) {
         my $opts = make_viewer_opts();
         my $viewercmd = $ViewerXpdfCmd;
@@ -7926,8 +7950,7 @@ sub check_viewer {
         {
             my $exists =
               kill( 0, $ViewerPid );    # check if viewer killed somehow.
-
-#            print "exists pid : $exists\n";
+            verbose "checking if viewer already exists: result $exists\n";
             return if $exists;
         }
         launch_viewer($Outfile);

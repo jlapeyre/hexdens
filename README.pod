@@ -218,7 +218,7 @@ Currently, they are shown in alphabetical order, which is
 not so useful. For example C<fshow axis> prints all parameters or options
 containing the string C<axis>.
 
-=item B<viewer>
+=item B<startviewer>
 
 Launch a viewer that displays the plot.
 Useful for instance to relaunch the viewer if it is killed or crashes.
@@ -561,7 +561,7 @@ print short(ish) help message.
 
 B<-man> 
 view long documentation as unix man page. Broken on
-some platforms (eg, BSD), but -mandoc might still work.
+some platforms (eg, BSD), but B<-mandoc> might still work.
 
 B<-mandoc> 
 print documentation as man page to file hexdens.1
@@ -653,10 +653,11 @@ B<-latticegray>  I<GRAYVALUE>
 shade for the lattice lines if drawn
 
 B<-xmin>,  B<-xmax,-ymin,-ymax>  I<FLOAT>  
-set boundaries of plot area, overriding automatic boundaries.
-If I<FLOAT> is ommitted, then the corresponding boundary is once again set automatically.
-If these are set interactivly, you must reread the file with the "replot" command in order for
-them to take effect. (Or use B<read> and then B<plot>.)
+set boundaries of plot area, overriding automatic boundaries.  If
+I<FLOAT> is ommitted, then the corresponding boundary is once again
+set automatically.  If these are set interactivly, you must reread the
+file with the "replot" command in order for them to take effect. (Or
+use B<read> and then B<plot>.)
 
 =head2      Density to Color map:
 
@@ -927,6 +928,11 @@ B<-plotwidth> I<PLOTWIDTH>  (default 12)
 the width of the plotted data area in centimeters. If the plot
 is too big for the page and eps or pdf are requested, then the plot is automatically rescaled
 to fit on the page.
+
+B<-viewer> I<VIEWERNAME> 
+(default C<xpdf>) Name of the viewer program used to view plots interactively.
+This may be one of C<xpdf> and C<gv>. In interactive mode, C<set viewer TAB TAB>
+may show a choice of viewers.
 
 B<-viewerscale> I<SCALE> 
 If using gv as a viewer, scale (that is, magnify) the viewing area by

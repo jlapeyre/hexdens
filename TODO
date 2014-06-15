@@ -1,1 +1,11 @@
 * pdf doc made from latex is ugly.
+
+* automatically select viewer program and workable settings
+  depending on what is installed. Currently, no xpdf simple 
+  causes an error and it is not clear how to get gv to work.
+
+* also it seems gv with examples is broken. gv tries to open
+  the wrong file, and other problems. Other bugs when switching
+  between gv and xpdf.
+
+* the test suite needs to be fixed. hence all the reintroduced bugs.

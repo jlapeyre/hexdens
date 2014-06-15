@@ -24,8 +24,11 @@ GNU General Public License for more details.
 
 package Hexdens;
 
-# NEEDS BUMP!
-our $VERSION = '0.21';
+# Unfortunately we have to copy the version manually right after section
+# =NAME.  I don't know a good place or way to include version number
+# in the user documentation. After an hour of googling I cannot find
+# any mention of the topic whatsoever.
+our $VERSION = '0.21a';
 
 # use POSIX module for log10 and floor functions
 use POSIX;
@@ -112,7 +115,7 @@ This file is organized (!) as follows from top to bottom:
 
 =head1  NAME
 
-B<hexdens> --  create density plots on a triangular or square lattice in postscript
+B<hexdens> v0.21a --  create density plots on a triangular or square lattice in postscript
 or pdf format.
 
 =head1  SYNOPSIS

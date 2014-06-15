@@ -24,6 +24,7 @@ GNU General Public License for more details.
 
 package Hexdens;
 
+# NEEDS BUMP!
 our $VERSION = '0.21';
 
 # use POSIX module for log10 and floor functions
@@ -282,7 +283,7 @@ Currently, they are shown in alphabetical order, which is
 not so useful. For example C<fshow axis> prints all parameters or options
 containing the string C<axis>.
 
-=item B<viewer>
+=item B<startviewer>
 
 Launch a viewer that displays the plot.
 Useful for instance to relaunch the viewer if it is killed or crashes.
@@ -1439,7 +1440,7 @@ sub Shell::command_completion_function {
 	    set_options( { SET   => 1 }, ("$opt '$arg'") ) },
         'set'    => sub { set_options( { SET   => 1 }, @_ ) },
         'unset'  => sub { set_options( { UNSET => 1 }, @_ ) },
-        'viewer' => sub {
+        'startviewer' => sub {
             $Hexdens::ViewerStarted = FALSE;
             Hexdens::check_viewer();
             return undef;

@@ -1,9 +1,11 @@
 #!/bin/sh
 
-rm *.html
-rm *.save
-rm .history.hexdens
-rm *.dat
-rm *.pdf
-rm *.tmp
+rm -f  *.html
+rm -f  *.save
+rm -f  .history.hexdens
+rm -f  *.dat
+rm -f  *.pdf
+rm -f  *.ps
+rm -f  *.eps
+rm -f  *.tmp
 perldoc -u hexdens > README.pod

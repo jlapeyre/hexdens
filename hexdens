@@ -28,7 +28,7 @@ package Hexdens;
 # =NAME.  I don't know a good place or way to include version number
 # in the user documentation. After an hour of googling I cannot find
 # any mention of the topic whatsoever.
-our $VERSION = '0.21a';
+our $VERSION = '0.21b';
 
 # use POSIX module for log10 and floor functions
 use POSIX;
@@ -115,7 +115,7 @@ This file is organized (!) as follows from top to bottom:
 
 =head1  NAME
 
-B<hexdens> v0.21a --  create density plots on a triangular or square lattice in postscript
+B<hexdens> v0.21b --  create density plots on a triangular or square lattice in postscript
 or pdf format.
 
 =head1  SYNOPSIS
@@ -474,9 +474,9 @@ Superscripts and subscripts, fonts, colors, and fine control
 of spacing are implemented using escape codes in the text
 strings. Each code consists of a backslash C<\> followed by
 one or more characters (neither backslash nor space)
-followed a space. For example the option: B<-xlabel> I<'\sym
-x\^ 2'> prints a Greek letter xsi with a superscript C<2> as
-the x-axis label. The string I<'e\^ \h-2 -\sym x\rm \^2 2'>
+followed a space. For example the option: C<-xlabel '\sym x\^ 2'> 
+prints a Greek letter xsi with a superscript C<2> as
+the x-axis label. The string C<'e\^ \h-2 -\sym x\rm \^2 2'>
 prints C<e> with C<-xsi> as a superscript and C<2> as a
 supersuperscript, with a negative horizontal half space
 before the minus sign. This is roughly equivalent to the TeX
@@ -494,9 +494,9 @@ Select roman, symbol, boldface, italic, or boldface-italic
 font. (The symbol font has Greek letters and other math symbols)
 The specific fonts
 corresponding to these codes can be changed in the
-F<.hexdens>. You can set the environment variable GS_FONTPATH of the shell in which
+F<.hexdens>. You can set the environment variable C<GS_FONTPATH> of the shell in which
 you run hexdens to use fonts than that are not in the default path
-of ghostscript. There is a $FontPath parameter in F<.hexdens> that does
+of ghostscript. There is a C<$FontPath> parameter in F<.hexdens> that does
 the same thing. If you produce pdf using B<-pdf> then the fonts will
 be embedded by gs in the file containing the plot, making the plot portable.
 (Currently this is not available for ps and eps. But producing pdf and
@@ -509,36 +509,36 @@ Switch to superscript, supersuperscript, subscript, or no super-/sub- script mod
 code C<\- > is used to leave super and subscript modes. These are a bit crude in positioning,
 but they can be adjusted, for instance with spacing codes given below.
 
-=item C<\h+ > C<\h+2 >  '\h- ' '\h-2 '  '\v+ ' '\v+2 '  '\v- ' '\v-2 '
+=item C<\h+ > C<\h+2 >  C<\h- > C<\h-2 >  C<\v+ > C<\v+2 >  C<\v- >  C<\v-2 >
 
 These are horizontal space, horizontal half space, horizontal negative space, horizontal negative half
-space and the corresponding vertical spaces. You can write '\h+n ' etc. for n=2,3,4,5, where the
-spaces decrease in size by a factor of one half with each increment of n. For instance '\v-5 ' is a negative
+space and the corresponding vertical spaces. You can write C<\h+n > etc. for n=2,3,4,5, where the
+spaces decrease in size by a factor of one half with each increment of n. For instance C<\v-5 > is a negative
 one-sixteenth vertical space.
 
-=item '\colorname '
+=item C<\colorname >
 
 This changes the text color. To see the list of color names, type C<hexdens -listcolors n>,
-or C<listcolors n> in interactive mode. If you omit the 'n',
-then four columns are printed. If you include an integer argument 'n', then n columns
+or C<listcolors n> in interactive mode. If you omit the C<n>,
+then four columns are printed. If you include an integer argument C<n>, then n columns
 are printed. These colors are approximately the X11 colors, which can be found (with swatches)
 many places on the web (eg Wikipedia). Any spaces in color names are converted to underscores
 in hexdens. In addition to those listed, there are gray1, through gray99, which goes from
-almost black to almost white. For example: I<-title '\red A \blue B \green C'>.
+almost black to almost white. For example: C<-title '\red A \blue B \green C'>.
 
-=item '\symbolname'
+=item C<\symbolname >
 
 This prints a symbol from the Adobe symbol font by name, without explicitly changing the font. That is,
 you can insert theses symbol names in normal text. To see a list of symbol names use the option
-B<-listsymbols>. For example: I<'\sigma \^ 2'>. There are also some aliases from TeX/LaTeX to
+B<-listsymbols>. For example: C<'\sigma \^ 2'>. There are also some aliases from TeX/LaTeX to
 the Adobe symbol names
 
-=item  '\\'  '\nnn'
+=item  C<\\>  C<\nnn>
 
-A double backslash is used to represent a literal backslash. A backslash followed by three digits I<nnn>
-prints the character corresponding to the octal character code I<nnn>. Refer to
+A double backslash is used to represent a literal backslash. A backslash followed by three digits C<nnn>
+prints the character corresponding to the octal character code C<nnn>. Refer to
 PostScript documentation for a list of these character codes. Note these
-two codes do not include a final space ' '.
+two codes do not include a final space C<' '>.
 
 =back
 
@@ -561,12 +561,12 @@ from file F<mytdata>. Size of hexagons computed automatically.
 
 
 Further examples of plots illustrating the use of various arguments
-can be generated using B<-ex> I<n>. For instance I<hexdens -ex 2>
+can be generated using B<-ex> I<n>. For instance C<hexdens -ex 2>
 creates the second example plot. You can see the example plot
-immediately if you use I<hexdens -display -ex 2>.
+immediately if you use C<hexdens -display -ex 2>.
 
-Using I<hexdens -demo>, produces all the examples sequentially and launhces the viewer to view them,
-prompting the user after each plot. I<hexdens -demo N> instead pauses for N seconds between example
+Using C<hexdens -demo>, produces all the examples sequentially and launhces the viewer to view them,
+prompting the user after each plot. C<hexdens -demo N> instead pauses for N seconds between example
 plots.
 
 =head1 HINTS
@@ -583,16 +583,16 @@ try reducing the size of the plot with B<-plotwidth>
 
 These options may be given on the command line or in interactive mode.
 Important! Setting an option to false is done by prefixing the option
-with 'no' when passing command line options to hexdens from a shell
+with C<no> when passing command line options to hexdens from a shell
 (ie B<-nokey>). In interactive mode, the option is set to false with
 'unset' (ie B<unset key>).
 
 The options listed here may  also be used in interactive
-mode using the B<set> command. In this case the leading '-' may
+mode using the B<set> command. In this case the leading C<-> may
 be omitted. Their values can be displayed with the B<show> command.
 Any options below that take an
 argument can have either spaces between the option name and
-the argument or a '=' between the option name and the
+the argument or a C<=> between the option name and the
 argument. You are only required to give enough of the
 characters in an option to distinguish it from other
 options. For example B<-sa> for B<-saturation>.  All gray

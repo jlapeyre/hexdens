@@ -3512,6 +3512,7 @@ sub show_html_page {
     my $res = `pod2html --help 2>&1 `;
     if ( defined $res and $res =~ /Usage/ ) {
         verbosesys "pod2html --outfile=hexdens.html  $ScriptName ";
+        verbosesys "rm pod2htmd.tmp" if (-e 'pod2htmd.tmp');
         verbosesys "$Browser hexdens.html 2> /dev/null &";
         iexit(0);
     }

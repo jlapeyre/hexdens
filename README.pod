@@ -1,8 +1,8 @@
 =begin copyright
 
-Tridens density plot program
+Hexdens density plot program
 
-Copyright 2003, 2011 John Lapeyre, All rights reserved.
+Copyright 2003, 2011, 2014 John Lapeyre, All rights reserved.
 This program is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation; either version 2, or (at your option)
@@ -20,7 +20,7 @@ GNU General Public License for more details.
 
 =begin comment
 
-   tridens -- Programmers' notes.
+   hexdens -- Programmers' notes.
    An identifier begins with a capital letter if and only if it is 
    global (declared with 'our').
    Sections of this file and related groups of routines are separated
@@ -47,33 +47,33 @@ This file is organized (!) as follows from top to bottom:
 
 =head1  NAME
 
-B<tridens> --  create density plots on a triangular or square lattice in postscript
+B<hexdens> --  create density plots on a triangular or square lattice in postscript
 or pdf format.
 
 =head1  SYNOPSIS
 
-usage: tridens [options] [F<infilename1>, F<infilename2> ...]
+usage: hexdens [options] [F<infilename1>, F<infilename2> ...]
 
 =head1 DESCRIPTION
 
-tridens reads data from the input files specified on command
+hexdens reads data from the input files specified on command
 line and, for each one, writes color or grayscale density
 plots.  The input data is assumed to be on a rectangular or
 triangular lattice. For the triangular(square) lattice, each
 coordinate pair in the input file is covered with a
 hexagon(square). Other data formats and plotting styles are
 available as well. The output file format is PostScript or
-PDF. tridens also operates in an interactive mode.
+PDF. hexdens also operates in an interactive mode.
 
 =head2 Quick start
 
-C<tridens data.dat> -- write a density plot data.dat.pdf of a regular square
+C<hexdens data.dat> -- write a density plot data.dat.pdf of a regular square
 (or rectangular) array of data points from a file.
 
-C<tridens -i data.dat> -- write a density plot and display the result in the
+C<hexdens -i data.dat> -- write a density plot and display the result in the
 pdf viewer and enter interactive mode.
 
-C<tridens -tri data.dat> -- write a density plot data.dat.pdf of data on a triangular
+C<hexdens -tri data.dat> -- write a density plot data.dat.pdf of data on a triangular
 lattice from a file with lines of the form 'x y val', where at least one of the nearest
 neighbors to the first point is present. (There can be 'holes' or missing points in the
 remainder of the data set.)
@@ -89,12 +89,12 @@ a triangular lattice.
 other methods. For instance, gnuplot's pm3d can be applied
 in more cases, but produces an essentially different plot.
 
-=item 3 To produce PostScript plots, tridens requires only a
+=item 3 To produce PostScript plots, hexdens requires only a
 standard perl installation, which is present on all Linux
 and nearly all Unix machines.  (But you probably want to
 generate eps or pdf, in which case ghostscript is required,
 but this is also standard on Unix/Linux; see below.)  The
-tridens program is a single file that needs no compilation
+hexdens program is a single file that needs no compilation
 or installation and generates its own documentation and
 parameter files. I wrote it after trying
 downloading/compiling/getting licenses/libraries for a bunch
@@ -121,11 +121,11 @@ Interactive mode is entered by either omitting a data filename on the command li
 or giving the option B<-i>.
 Here is an example:
 
- myshellprompt > tridens -i sq1.dat
- tridens> plot
- tridens> set title 'This is the title'
- tridens> plot
- tridens> plot 'other.dat'
+ myshellprompt > hexdens -i sq1.dat
+ hexdens> plot
+ hexdens> set title 'This is the title'
+ hexdens> plot
+ hexdens> plot 'other.dat'
 
 In the example, the first plot is displayed twice, adding a title the second time. Then, data from
 a second data file is plotted. If Term::Readline is installed on your system (It is available
@@ -156,7 +156,7 @@ View long documentation as unix man page.
 
 =item B<html>
 
-Print documentation to  tridens.html and try to open it in a browser (firefox by default)
+Print documentation to  hexdens.html and try to open it in a browser (firefox by default)
 
 =for trihelp commands start
 
@@ -164,7 +164,7 @@ Print documentation to  tridens.html and try to open it in a browser (firefox by
 
 write (or rewrites) the output plot file. If FILENAME is given as an argument (in single quotes) then
 the data is read (or reread) from the file. If there is no argument, then the most recently read
-data is used. If you have set the option B<-dis> then tridens will try to display the plot
+data is used. If you have set the option B<-dis> then hexdens will try to display the plot
 immediately in a viewer (which can be configured to be xpdf or ghostview.)
 
 =item B<replot>
@@ -172,14 +172,14 @@ immediately in a viewer (which can be configured to be xpdf or ghostview.)
 Reread the data from the most recently read input data file
 and replot the data. If an argument is given, data is
 instead read from the file named in the argument. This is
-equivalent to using 'read' and then 'plot'.
+equivalent to using B<read> and then B<plot>.
 
 =item B<set> I<OPTION> I<VALUE> ...
 
 Set the value of an option (or options). If the option is
 boolean then I<VALUE> must be omitted.  In interactive mode,
 boolean options are set with B<set> and unset with B<unset>.
-When starting tridens from the command line boolean options
+When starting hexdens from the command line boolean options
 are unset by prefixing the option name with 'no'.  For
 example: C<set cmgray title 'title of plot'>, sets the title
 and sets grayscale mode.  On the commadline C<-nokey>
@@ -199,9 +199,9 @@ see B<set>.
 
 Display the value variables set by an option (or options)
 You can omit the leading dash '-' on the option when using show.
-For example if the color map is set to 'cmhue' rather than 'cmgray':
+For example if the color map is set to B<cmhue> rather than B<cmgray>:
 
-  tridens> show cmgray title
+  hexdens> show cmgray title
   ColorMap = hue
   Title = ''
 
@@ -215,8 +215,8 @@ optional argument I<PATTERN> causes fshow to print only those
 parameters matching the argument. (The pattern is typically
 a string, but it can be a perl regular expression.)
 Currently, they are shown in alphabetical order, which is
-not so useful. For example 'fshow axis' prints all parameters or options
-containing the string 'axis'.
+not so useful. For example C<fshow axis> prints all parameters or options
+containing the string C<axis>.
 
 =item B<viewer>
 
@@ -224,35 +224,35 @@ Launch a viewer that displays the plot.
 Useful for instance to relaunch the viewer if it is killed or crashes.
 (But this should happen automatically in most cases.)
 
+=item B<holdview>
 
-=for trihelp commands stop
+Show each plot in a single viewer. If not set, then a new viewer is
+started for each plot. If B<holdview> is unset and then set, then
+the most recent viewer is used for the next plot.
 
 =item B<example> I<N>
 
 Write example plot number I<N> and display it in the viewer.
 
-=item B<demo>
-
-Display demonstration plots in the viewer.
-
-=for trihelp commands start
-
 =item B<read> I<somefile.data>
 
-Reads the data from the file, that can then be plotted with 'plot'. Use this to force rereading of data file.
-You can also use "plot  'filename'", but it will not re-read the data.
+Reads the data from the file, that can then be plotted with
+B<plot>. Use this to force rereading of data file.  You can also use
+C<plot 'filename'>, but it will not re-read the data.
 
 =item B<save> I<configfile>
 
-Save the current plotting options to the file I<configfile> or 'save.tridens' if I<configfile> is omitted.
-There is no 'save' command for the plot itself, as it always written to a file. This saves options
-that are currently set. When starting a new tridens session, the command B<load> will restore
-the saved parameter settings.
+Save the current plotting options to the file I<configfile> or
+'save.hexdens' if I<configfile> is omitted. This
+saves the options that are currently set. When starting a new hexdens
+session, the command B<load> will restore the saved parameter
+settings. There is no 'save'
+command for the plot itself, as it always written to a file.
 
 =item B<load> I<configfile>
 
-Load saved plotting options from the file I<configfile> or 'save.tridens' if I<configfile> is omitted.
-If the default filename for saved parameters 'save.tridens' is found when tridens starts, then
+Load saved plotting options from the file I<configfile> or 'save.hexdens' if I<configfile> is omitted.
+If the default filename for saved parameters 'save.hexdens' is found when hexdens starts, then
 it will be loaded automatically.
 
 =item B<textdoc>
@@ -267,27 +267,35 @@ preferrable.
 These are commands corresponding to
 the commandline options of the same names described below.
 
-=item B<exit>  
+=for trihelp commands start
 
-quit interactive mode and exit tridens
+=item B<exit>
+
+quit interactive mode and exit hexdens
+
+=item B<quit>
+
+quit interactive mode and exit hexdens
+
+=for trihelp commands stop
 
 =back
 
 All commands above may be abbreviated. Although not normally
 useful, typing the name of a
 'variable' prints its value, with the variable as it appears
-in the configuration file F<.tridens> (described below)
-except that it is prepended with I<Tridens::>, eg
-I<$Tridens::Title>.  To change plot parameters you may use
+in the configuration file F<.hexdens> (described below)
+except that it is prepended with I<Hexdens::>, eg
+I<$Hexdens::Title>.  To change plot parameters you may use
 B<set> as in the example above. Although usually not necessary,
-you may also use the variables as they appear in the file F<.tridens>, again with
-the prefix. For example $Tridens::Title = 'title of plot'.
+you may also use the variables as they appear in the file F<.hexdens>, again with
+the prefix. For example C<$Hexdens::Title = 'title of plot'>.
 Note that all variables begin with a dollar sign, as in the
 perl language.
 
 If possible a viewer is started to monitor
 the output file and update upon replotting. The default viewer is xpdf
-which is set in the configuration file F<.tridens> (see below).
+which is set in the configuration file F<.hexdens> (see below).
 
 With the addition of recognizing a few commands, the
 interactive mode is executing your input as perl code. So
@@ -296,22 +304,16 @@ and $E are defined.) The user can declare new variables
 without the prefix for use only in the interactive
 shell. For example:
 
- tridens> $x = 1
+ hexdens> $x = 1
  1
- tridens> set -title 'Plot number $x'
- tridens> pl 'sq1.dat'
+ hexdens> set title 'Plot number $x'
+ hexdens> pl 'sq1.dat'
 
 Note that the value of $x is interplotated into the title string. (In perl
 single quotes do not cause interpolation, but here they do.)
 
-If a line begins with '!' the remainder will be passed to the
-shell. For example '!ls' will list the directory contents (in unix-like OS's).
-
-The reason for the cumbersome prefix Tridens:: is to allow
-access or modify all data and subroutines in tridens from
-the interactive mode, while making it difficult for the
-interactive user to accidentally change an important
-subroutine or variable with harmful results.
+If a line begins with C<!> the remainder will be passed to the
+shell. For example C<!ls> will list the directory contents (in unix-like OS's).
 
 =head3 Command line editing
 
@@ -331,24 +333,32 @@ distributions.)
 
 =head2 Data file format
 
-An attempt is made to detect one of the supported formats automatically
+An attempt is made to detect one of the two supported data file formats automatically
 (but this behavior can be disabled or overidden. See
 B<-autodata> and  B<-grided>.)
 In the standard format, the input data file must have lines of the form
 
  x y val
 
-which causes a polygon with coloring representing val to be
-drawn at the point x,y.  Numbers can be separated by
-whitespace (spaces,tabs) or commas or anything not used to
-denote numbers (ie, digits . + - e E). Leading whitespace is
-ignored. Comment lines in the data file can start with the
-characters $ % ; ! # .  If the option B<-grided> (with
-details described below) is set (or autodata detection is
-set)  then the data file must consist
-of only the values, with the coordinates implied by the row and column of
-the number. With the grided format an n by m plot will be produced from a data file with m lines
-and n numbers in each line.
+which causes a polygon with coloring representing val to be drawn at
+the point x,y.  Numbers can be separated by whitespace (spaces,tabs)
+or commas or anything not used to denote numbers (ie, digits . + - e
+E). Leading whitespace is ignored. Comment lines in the data file can
+ start with the characters $ % ; ! # .  If the option B<-grided> (with
+details described below) is set (or autodata detection is set) then
+the data file must consist of only the values, with the coordinates
+implied by the row and column of the number. In the grided format an n
+by m plot will be produced from a data file with m lines and n numbers
+in each line, but holes are allowed. For example, the data file
+
+ 1 2 3
+ 4 5 6
+ 7 8
+
+will produce a 3 by 3 plot with one missing square and eight
+colors or intensities. But, if both B<-noautodata> and B<-nogrided> are set,
+then this data file will print two tiles and the last line, which is
+invalid, will be ignored.
 
 The program does not assume that the data is on a triangular
 grid-- the coordinates x,y can be any numbers. But a hexagon
@@ -356,7 +366,7 @@ grid-- the coordinates x,y can be any numbers. But a hexagon
 in the input file, so that, if a data point exists for each
 vertex of a triangular(square) lattice within a region, all
 space on the plot is filled and no hexagons(squares)
-overlap. You do not have to have a data point for each point
+overlap. You do not have to supply a data point for each point
 in the region plotted; there can be holes in the data.
 
 The length of the sides of the polygons is computed from the
@@ -364,13 +374,12 @@ distance from the first data point to the point nearest to
 the first point in such a way that all the plot surface is
 covered with no overlap if nearest neighbor distances are
 all the same. This can be turned off with option
-'-noautolength' or by giving the option '-sidelength', in
+B<-noautolength> or by giving the option B<-sidelength>, in
 which case the length of the side must be set explicitly on
 the command line or in interactive mode.
-
 If the data is on a square lattice with different units on
 the x- and y- axes (e.g. time and distance) use the
--nosameunits option below (this is the default). In this
+B<-nosameunits> option below (this is the default). In this
 case nearest points to the first point in both the x- and y-
 directions are computed to determine the length of the sides
 in physical units.
@@ -388,7 +397,7 @@ ghostscript. It is available for MS platforms. If you can
 view a PostScript document under Linux/Unix/MS Windows you
 almost certainly have ghostscript installed as the
 backend. )  You may also use some external conversion
-program to get pdf and eps from the ps generated by tridens.
+program to get pdf and eps from the ps generated by hexdens.
 
 =head2 Text in title and labels
 
@@ -404,7 +413,7 @@ prints I<e> with I<-xsi> as a superscript and I<2> as a
 supersuperscript, with a negative horizontal half space
 before the minus sign. This is roughly equivalent to the TeX
 code I<e^{-\xi^2}>; here TeX is smart enough to
-automatically position the elements, whereas with F<tridens>
+automatically position the elements, whereas with F<hexdens>
 fine spacing must be done manually.
 
 The codes are as follows:
@@ -417,9 +426,9 @@ Select roman, symbol, boldface, italic, or boldface-italic
 font. (The symbol font has Greek letters and other math symbols)
 The specific fonts
 corresponding to these codes can be changed in the
-F<.tridens>. You can set the environment variable GS_FONTPATH of the shell in which
-you run tridens to use fonts than that are not in the default path
-of ghostscript. There is a $FontPath parameter in F<.tridens> that does
+F<.hexdens>. You can set the environment variable GS_FONTPATH of the shell in which
+you run hexdens to use fonts than that are not in the default path
+of ghostscript. There is a $FontPath parameter in F<.hexdens> that does
 the same thing. If you produce pdf using B<-pdf> then the fonts will
 be embedded by gs in the file containing the plot, making the plot portable.
 (Currently this is not available for ps and eps. But producing pdf and
@@ -441,12 +450,12 @@ one-sixteenth vertical space.
 
 =item '\colorname '
 
-This changes the text color. To see the list of color names, type C<tridens -listcolors n>,
+This changes the text color. To see the list of color names, type C<hexdens -listcolors n>,
 or C<listcolors n> in interactive mode. If you omit the 'n',
 then four columns are printed. If you include an integer argument 'n', then n columns
 are printed. These colors are approximately the X11 colors, which can be found (with swatches)
 many places on the web (eg Wikipedia). Any spaces in color names are converted to underscores
-in tridens. In addition to those listed, there are gray1, through gray99, which goes from
+in hexdens. In addition to those listed, there are gray1, through gray99, which goes from
 almost black to almost white. For example: I<-title '\red A \blue B \green C'>.
 
 =item '\symbolname'
@@ -470,25 +479,26 @@ changed by another font or super/sub script code.
 
 =head1 EXAMPLES
 
-C<tridens  mysdata>
+C<hexdens  mysdata>
 
 Write a density plot to F<mysdata.pdf>
 after reading data on a square grid from file F<mysdata>. Size of squares covering the
 plot are computed automatically: The distance to the closest data point from the
 first data point is used for the length of a side.
 
-C<tridens -eps -tri mytdata>
+C<hexdens -eps -tri mytdata>
 
 Write density plot on triangular grid (covered with hexagons) to F<mytdata.eps> after reading data 
 from file F<mytdata>. Size of hexagons computed automatically.
 
 
-Further examples of plots illustrating the use of various arguments can be generated using B<-ex> I<n>. For instance
-I<tridens -ex 2>  creates the second example plot. You can see the example plot immediately if you
-use I<tridens -display -ex 2>.
+Further examples of plots illustrating the use of various arguments
+can be generated using B<-ex> I<n>. For instance I<hexdens -ex 2>
+creates the second example plot. You can see the example plot
+immediately if you use I<hexdens -display -ex 2>.
 
-Using I<tridens -demo>, produces all the examples sequentially and launhces the viewer to view them,
-prompting the user after each plot. I<tridens -demo N> instead pauses for N seconds between example
+Using I<hexdens -demo>, produces all the examples sequentially and launhces the viewer to view them,
+prompting the user after each plot. I<hexdens -demo N> instead pauses for N seconds between example
 plots.
 
 =head1 HINTS
@@ -496,21 +506,23 @@ plots.
 It is usually necessary to enclose strings such as the title
 string in single quotes rather than double quotes to prevent
 perl or the shell from trying to interpret the escaped
-tridens codes.
+hexdens codes.
 
 If labels or other elements of the plot are clipped by the edge of the drawing surface,
 try reducing the size of the plot with B<-plotwidth>
 
 =head1 OPTIONS
 
+These options may be given on the command line or in interactive mode.
 Important! Setting an option to false is done by prefixing the option
-with 'no' when passing command line options to tridens from a shell
+with 'no' when passing command line options to hexdens from a shell
 (ie B<-nokey>). In interactive mode, the option is set to false with
 'unset' (ie B<unset key>).
 
 The options listed here may  also be used in interactive
-mode using the 'set' command. In this case the leading '-' may
-be omitted. Any options below that take an
+mode using the B<set> command. In this case the leading '-' may
+be omitted. Their values can be displayed with the B<show> command.
+Any options below that take an
 argument can have either spaces between the option name and
 the argument or a '=' between the option name and the
 argument. You are only required to give enough of the
@@ -518,6 +530,20 @@ characters in an option to distinguish it from other
 options. For example B<-sa> for B<-saturation>.  All gray
 values use: 0=black, 1=white.
 
+For example, on the command line:
+ shellprompt> hexdens -xlabel 'A label'
+ 
+In interactive mode:
+ hexdens> show xlabel
+ XLabel = ''
+ hexdens> set xlabel  'A label'
+ hexdens> set -xlabel 'B label'
+ hexdens> set xlabel='C label'
+ hexdens> set -xlabel='D label'
+ hexdens> show xlabel
+ XLabel = 'D label'
+
+=head2    Input mode:
 
 B<-i> Run in interactive mode
 
@@ -525,7 +551,7 @@ B<-i> Run in interactive mode
 
 B<-batch> I<FILE>
 Process commands in file I<FILE> as if in interactive mode.
-If the last statement in I<FILE> is not 'exit', then interactive mode continues after
+If the last statement in I<FILE> is not B<exit>, then interactive mode continues after
 I<FILE> is processed.
 
 =head2    Documentation:
@@ -538,13 +564,13 @@ view long documentation as unix man page. Broken on
 some platforms (eg, BSD), but -mandoc might still work.
 
 B<-mandoc> 
-print documentation as man page to file tridens.1
+print documentation as man page to file hexdens.1
 
 B<-htmldoc> 
-print documentation to  tridens.html
+print documentation to  hexdens.html
 
 B<-html> 
-print documentation to  tridens.html and try to open it in a browser (firefox by default)
+print documentation to  hexdens.html and try to open it in a browser (firefox by default)
 
 B<-textdoc> 
 print documentation as plain text to standard output.
@@ -554,7 +580,7 @@ print documentation as a pdf file via latex. You must have latex and
 pdflatex installed.
 
 B<-paramfile> 
-write parameter startup file template to the file .tridens
+write parameter startup file template to the file .hexdens
 This template can be edited. If present, it will be read before
 processing command line arguments. Currently only works from command
 line; not in interactive mode. See also the  B<save> command, which
@@ -565,22 +591,24 @@ current state of the options.
 
 =head2     Plot Contents:
 
-If  B<-square>, B<-tri>, or B<-circle> are set interactively, then 'replot' rather
-than 'plot' must be used.
+If  B<-square>, B<-tri>, or B<-circle> are set interactively, then B<replot> rather
+than B<plot> must be used.
 
 B<-square>
-(default) Cause squares to be drawn at data coordinates, not hexagons. By default
-this uses the B<-nosameunits> option. But for a data file with a nearest neighbor of the
-first point absent in one of the x or y directions, setting B<-sameunits> will be sucessful
-as long as a nearest  neighbor is present in one direction.
+(default) If set, the data is plotted by drawing square tiles at data
+coordinates, not hexagons. By default this uses the B<-nosameunits>
+option. But for a data file with a nearest neighbor of the first point
+absent in one of the x or y directions, setting B<-sameunits> will be
+sucessful as long as a nearest neighbor is present in one direction.
 
 B<-tri>
-assume a triangular lattice, I<ie> hexagons are drawn. This option automatically
-sets the B<-sameunits> option.
+assume a triangular lattice, I<ie> the data is plotted by drawing
+hexagonal tiles centered at data coordinates. This option
+automatically sets the B<-sameunits> option.
 
 B<-circle>
-draw circles on data coordinates.  This option automatically
-sets the B<-sameunits> option.
+The data is plotted by drawing circular tiles centered at data
+coordinates. This option automatically sets the B<-sameunits> option.
 
 B<-sidelength> I<SIDELENGTH> 
 length of sides of polygons covering the density plot. By
@@ -589,7 +617,6 @@ default, this is computed automatically and this option need not be given.
 B<-xsidelength> I<SIDELENGTH> 
 length of sides on x-axis. Use only if -nosameunits
 and -noautolength are both set.
-
 
 B<-ysidelength> I<SIDELENGTH> 
 length of sides on y-axis. Use only if -nosameunits
@@ -602,11 +629,11 @@ between data points.
 B<-sameunits>  B<-nosameunits>
 If set, assume x and y coordinates are in the same units (triangular lattice tiled
 with hexagons makes more sense this way.) Finding the separation between data points on the x-y
-plane is computed using Euclidean distance. Use 'replot' after setting this interactively.
+plane is computed using Euclidean distance. Use B<replot> after setting this interactively.
 If unset,(default) assume x and y coordinates have different units. That is, one might be time and another
 length. When finding the separation between data points to compute the size of the tiling square,
 x-axis and y-axis are treated separately. This does not work with triangular lattice.
-Use 'replot' after setting this interactively.
+Use B<replot> after setting this interactively.
 
 B<-aspectratio> I<VALUE>
 Sets the aspect ratio of the plot area. A value of 1 is square. A value greater (less) than 1 makes
@@ -629,12 +656,12 @@ B<-xmin>,  B<-xmax,-ymin,-ymax>  I<FLOAT>
 set boundaries of plot area, overriding automatic boundaries.
 If I<FLOAT> is ommitted, then the corresponding boundary is once again set automatically.
 If these are set interactivly, you must reread the file with the "replot" command in order for
-them to take effect. (Or use 'read' and then 'plot'.)
+them to take effect. (Or use B<read> and then B<plot>.)
 
 =head2      Density to Color map:
 
 B<-cmgray>  
-Make a grayscale density plot. That is the value of the data is represented by shades of gray.
+Make a grayscale density plot. That is, the value of the data is represented by shades of gray.
 
 With the following three color maps, the value of the data is represented
 by the named color parameter (hue,saturation, or brightness). In each case
@@ -696,12 +723,12 @@ B<-usepower>
 raise data values to a power before mapping to colors
 
 B<-power> I<POWER> 
-(default value .5) power to use with -usepower
+(default value .5) power to use with B<-usepower> for scaling data for color/grayscale map.
 
 =head2     Labels, Ticks, Axes, Border, Key etc:
 
 B<-title> I<'The Title'>
-plot title
+plot title drawn above frame.
 
 B<-titleyoffset> I<FRAC> 
 Fractional part of frame height by which title is separtated from
@@ -758,7 +785,7 @@ is omitted.
 B<-findcolors> I<STRING> 
 print a list of all color names
 that contain I<STRING> as a substring. For example:
-C<tridens -findcolors red> lists all colors with 'red' in
+C<hexdens -findcolors red> lists all colors with 'red' in
 the name.
 
 B<-listsymbols> I<N>  
@@ -776,6 +803,25 @@ B<-keynbars>  I<NUM>
 B<-keylabelskip>  I<NUM> 
 (default 4) Print a numerical label on a color bar in the key for
 only every NUMth bar. By default there are then 9 numerical labels on the color bars.
+
+B<-keywidth> I<NUM>
+(default 0.03) Width of key as a fraction of the framewidth.
+
+B<-keyheight> I<NUM>
+(default 1) Height of key as a fraction of the frameheight.
+
+B<-keyxoffset> I<NUM>
+(default 0.1) The fraction of the width of the frame of the horizontal offset
+of the key from the right edge of the frame.
+
+B<-keyyoffset> I<NUM>
+(default 0) The fraction of the height of the frame of the vertical offset
+ of the key from the bottom edge of the frame.
+
+B<-keyexpraise> I<NUM>
+(default 0.55) Fraction of character height to raise exponent in scientific notation in the key.
+
+
 
 B<-explim> 
 (default 1) largest power of ten to write in normal, rather than scientific 
@@ -857,7 +903,7 @@ Draw a rectangular frame around the plot (default true)
 
 B<-xbuf> I<XFRAC> , B<-ybuf> I<YFRAC>, B<-buf> I<FRAC> (default 0.03)  
 space left between plot and frame as a fraction of
-plot width. In interactive mode, you must use 'replot' for this change to take effect. Use B<-buf> to
+plot width. In interactive mode, you must use B<replot> for this change to take effect. Use B<-buf> to
 set both the x and y buffer fractions to the same value.
 
 =head2  Output:
@@ -888,7 +934,7 @@ this amount. If you use a different viewer, change the variable $ViewerScaleOpt 
 configuration file.
 
 Note that if you change the file type in interactive mode with the following three commands, you
-must enter 'viewer' to launch a new viewer for the new output plot.
+must enter B<viewer> to launch a new viewer for the new output plot.
 
 B<-ps>       
 Set the output file format to ps, PostScript.
@@ -904,14 +950,13 @@ Set the output file format to pdf. (default)
 B<-latexrun>  B<-nolatexrun>
 (default unset) Process the text (eg in title and labels) as latex commands. This calls
 the ipe program to run latex and replace the text with the output of latex.
-For instance set xlabel '$e^{x^2}$' will give the desired result. The numbers in the
+For instance C<set xlabel '$e^{x^2}$'> will give the desired result. The numbers in the
 key are not rendered correctly by ipe unless the B<-latexnumbers> option is also
 set. The pdftoipe program does not try to recenter the resulting image. You may have
 to do something like
-set xlabel ' \white .................\black  $e^{x^2}$', to put a series of invisible
+C<set xlabel ' \white .................\black  $e^{x^2}$'>, to put a series of invisible
 dots to acheive centering. Or try the option B<-xlabelxoffset>. Backslashes in
-latex code must be escaped with a backslash. Ie. $\\frac{1}{2}$
-
+latex code must be escaped with a backslash. Ie. C<$\\frac{1}{2}$>
 
 B<-latexnumbers>
 Write numbers in the key as latex commands. If option B<-latexrun> is set, they
@@ -922,15 +967,12 @@ B<-bbpad> I<PSPOINTS>
 Increase this if part of the plot is clipped at the edge. Decrease this if too much white space
 is shown around the plot. (This is relevant for 'eps' and 'pdf' formats)
 
-
 B<-whitebox> B<-nowhitebox>
 (default on) Draw a white (invisible) frame around 
 the entire plot (including amount specified by option B<bbpad>.) 
 Some programs such as ipe recompute the bounding box, which defeats
-the purpose of bbpad. These programs will  compute the bounding box around this white
-frame. Otherwise small errors can cause a small part of the plot or text to
-be clipped.
-
+the purpose of bbpad. This white frame prevents these programs from erroneously clipping
+visible parts of the plot.
 
 B<-portrait>
 (default)
@@ -949,7 +991,7 @@ B<-autodata> B<-noautodata>
 (default is set) Attempt to detect the data file format. A line with three columns of
 data is interpreted as "x y val". A line with more data on a line is assumed to be
 on a grid ('grided') If B<-grided> is set, then this detection is overriden even
-if B<-grided> is set. For instance, if the data is intended to be on a grid that is
+if B<-autodata> is set. For instance, if the data is intended to be on a grid that is
 three data points wide (rather uncommon), each line will be misinterpreted
 as "x y val".
 
@@ -965,16 +1007,17 @@ write example plot number I<n>. If B<-display> is given, show plot in viewer.
 
 B<-demo> I<n>  
 write and display all example plots. If optional number I<n> is given,
-there is a pause of I<n> seconds between plots.
+there is a pause of I<n> seconds between plots. Otherwise the user is prompted
+for the next example.
 
 B<-v>   
 verbose print more messages during operation.
 
 B<-version>  
-print tridens version number and exit.
+print hexdens version number. Exit if not in interactive mode.
 
 B<-test>  
-run the test suite. requires first running B<-generatetest> with a good copy of tridens.
+run the test suite. requires first running B<-generatetest> with a good copy of hexdens.
 
 B<-generatetest> 
 generate the test suite. only for development. Currently broken
@@ -983,12 +1026,12 @@ generate the test suite. only for development. Currently broken
 
 =head1 REQUIREMENTS AND DEPENDENCIES
 
-Tridens requires a standard perl installation to produce postscript.
+Hexdens requires a standard perl installation to produce postscript.
 
 ghostscript ('gs') must  be installed to produce eps and pdf files.
 
 ghostview ('gv') or xpdf must be installed if you want
-tridens to launch viewers at the appropriate time.  It is
+hexdens to launch viewers at the appropriate time.  It is
 probably possible to use other viewers as well.
 
 While not necessary for interactive mode, a perl readline
@@ -1007,38 +1050,38 @@ kdialog is used by command gset.
 If you need to set more options than are available on the command line (or prefer to use
 a configuration file) type
 
-C<tridens -paramfile>
+C<hexdens -paramfile>
 
-to generate the file F<.tridens> with the default parameters
+to generate the file F<.hexdens> with the default parameters
 in the current directory.  Then edit this file to suit your
-needs. It will be read each time tridens is run.  This
+needs. It will be read each time hexdens is run.  This
 parameter file is moderately well commented.  Any parameters that
-are deleted from or 'commented out' of F<.tridens> will be
-determined by the built-in defaults.  If you copy F<.tridens>
+are deleted from or 'commented out' of F<.hexdens> will be
+determined by the built-in defaults.  If you copy F<.hexdens>
 to F<infilename.p> and edit the result, then, only when
 processing data file F<infile>, the file F<infilename.p>
-will be read after F<.tridens> and any parameters present
+will be read after F<.hexdens> and any parameters present
 will override previously set values. There
-is a copy of F<.tridens> inside the F<tridens> executable program,
+is a copy of F<.hexdens> inside the F<hexdens> executable program,
 which is a plain text file (a perl program). If you edit these internal parameters,
 then they become the default parameters.
 In summary, parameters are set in this order: 1) internal (default) parameters,
-2) parameters in F<.tridens>, 3) parameters in F<infilename.p>,
-4) parameters in F<save.tridens> (saved with the B<save> command),
+2) parameters in F<.hexdens>, 3) parameters in F<infilename.p>,
+4) parameters in F<save.hexdens> (saved with the B<save> command),
 5) parameters
 given on the command line. 6) parameters set interactively.
 In this list, settings with higher numbers override 
 settings with lower numbers. In addition, the command B<load> can be used at anytime interactively
 to restore parameters settings that were saved with B<save> F<FILENAME>.
 
-On exiting tridens normally the interactive command history is automatically saved
-(by gnu readline). The history will be read the next time tridens is started so that
+On exiting hexdens normally the interactive command history is automatically saved
+(by gnu readline). The history will be read the next time hexdens is started so that
 the commands from the previous session are available in the history.
 
 =head1 TROUBLESHOOTING
 
-If tridens won't start or misbehaves, try deleting parameter files 'save.tridens'
-and  '.tridens' as they may be out of date.
+If hexdens won't start or misbehaves, try deleting parameter files 'save.hexdens'
+and  '.hexdens' as they may be out of date.
 
 =head1 INTERACTIVE SHELL
 
@@ -1064,11 +1107,11 @@ set cmlo 1   sometimes gives error about range, when the value is
 
 =head1 FILES
 
-Tridens is distributed as a single file.
+Hexdens is distributed as a single file.
 
 =head1 COPYRIGHT
 
-Copyright 2003, 2011 John Lapeyre, All rights reserved.
+Copyright 2003, 2011, 2014 John Lapeyre, All rights reserved.
 This program is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation; either version 2, or (at your option)

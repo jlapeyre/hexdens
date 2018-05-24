@@ -56,14 +56,14 @@ usage: hexdens [options] [F<infilename1>, F<infilename2> ...]
 
 =head1 DESCRIPTION
 
-hexdens reads data from the input files specified on command
-line and, for each one, writes color or grayscale density
-plots.  The input data is assumed to be on a rectangular or
-triangular lattice. For the triangular(square) lattice, each
-coordinate pair in the input file is covered with a
-hexagon(square). Other data formats and plotting styles are
-available as well. The output file format is PostScript or
-PDF. hexdens also operates in an interactive mode.
+C<hexdens> reads data from the input files specified on command line
+and, for each one, writes color or grayscale density plots.  The input
+data is assumed to be on a rectangular or triangular lattice. For the
+triangular(square) lattice, each coordinate pair in the input file is
+covered with a hexagon(square). Other data formats and plotting styles
+are available as well. C<hexdens> includes a PostScript driver, and
+supports PDF if C<ghostscript> is installed.  C<hexdens> also operates
+in an interactive mode.
 
 =head2 Quick start
 
@@ -579,6 +579,9 @@ print documentation to  hexdens.html and try to open it in a browser (firefox by
 
 B<-textdoc> 
 print documentation as plain text to standard output.
+
+B<-poddoc> 
+write the documentation in pod format to the file README.pod
 
 B<-pdfdoc> 
 print documentation as a pdf file via latex. You must have latex and

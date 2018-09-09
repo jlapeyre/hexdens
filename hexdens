@@ -90,16 +90,16 @@ sub deb;
 =begin comment
 
    hexdens -- Programmers' notes.
-   An identifier begins with a capital letter if and only if it is 
+   An identifier begins with a capital letter if and only if it is
    global (declared with 'our').
    Sections of this file and related groups of routines are separated
-   by a bar like this '#==== ...'. 
+   by a bar like this '#==== ...'.
    A block that serves only to implement scoping of variables to be shared
    by some routines is enclosed with bars like this '#*=*=*=* ...' .
 
    See BUGS section below for things that need to be fixed.
 
-This file is organized (!) as follows from top to bottom: 
+This file is organized (!) as follows from top to bottom:
 
 * Pod documentation. This is the source for man page, html, etc. as is usual with
   pod. It also has to local directives that are used to extract short interactive
@@ -111,7 +111,7 @@ This file is organized (!) as follows from top to bottom:
 
 =end comment
 
-=cut 
+=cut
 
 #=====================================================================================#
 #  SECTION                                                                            #
@@ -221,7 +221,7 @@ The following lists commands recognized in the interactive mode.
 
 =over 1
 
-=item B<h> 
+=item B<h>
 
 Print command line options
 
@@ -341,7 +341,7 @@ it will be loaded automatically.
 Print this entire user documentation as plain text. Using B<man> or B<html> if possible
 preferrable.
 
-=item B<listcolors>, B<listsymbols>, B<listfonts>, B<findcolors> 
+=item B<listcolors>, B<listsymbols>, B<listfonts>, B<findcolors>
 
 =for trihelp commands stop
 
@@ -487,7 +487,7 @@ Superscripts and subscripts, fonts, colors, and fine control
 of spacing are implemented using escape codes in the text
 strings. Each code consists of a backslash C<\> followed by
 one or more characters (neither backslash nor space)
-followed a space. For example the option: C<-xlabel '\sym x\^ 2'> 
+followed a space. For example the option: C<-xlabel '\sym x\^ 2'>
 prints a Greek letter xsi with a superscript C<2> as
 the x-axis label. The string C<'e\^ \h-2 -\sym x\rm \^2 2'>
 prints C<e> with C<-xsi> as a superscript and C<2> as a
@@ -569,7 +569,7 @@ first data point is used for the length of a side.
 
 C<hexdens -eps -tri mytdata>
 
-Write density plot on triangular grid (covered with hexagons) to F<mytdata.eps> after reading data 
+Write density plot on triangular grid (covered with hexagons) to F<mytdata.eps> after reading data
 from file F<mytdata>. Size of hexagons computed automatically.
 
 
@@ -613,7 +613,7 @@ values use: 0=black, 1=white.
 
 For example, on the command line:
  shellprompt> hexdens -xlabel 'A label'
- 
+
 In interactive mode:
  hexdens> show xlabel
  XLabel = ''
@@ -637,33 +637,33 @@ I<FILE> is processed.
 
 =head2    Documentation:
 
-B<-h> 
+B<-h>
 print short(ish) help message.
 
-B<-man> 
+B<-man>
 view long documentation as unix man page. Broken on
 some platforms (eg, BSD), but B<-mandoc> might still work.
 
-B<-mandoc> 
+B<-mandoc>
 print documentation as man page to file hexdens.1
 
-B<-htmldoc> 
+B<-htmldoc>
 print documentation to  hexdens.html
 
-B<-html> 
+B<-html>
 print documentation to  hexdens.html and try to open it in a browser (firefox by default)
 
-B<-textdoc> 
+B<-textdoc>
 print documentation as plain text to standard output.
 
-B<-poddoc> 
+B<-poddoc>
 write the documentation in pod format to the file README.pod
 
-B<-pdfdoc> 
+B<-pdfdoc>
 print documentation as a pdf file via latex. You must have latex and
 pdflatex installed.
 
-B<-paramfile> 
+B<-paramfile>
 write parameter startup file template to the file .hexdens
 This template can be edited. If present, it will be read before
 processing command line arguments. Currently only works from command
@@ -694,19 +694,19 @@ B<-circle>
 The data is plotted by drawing circular tiles centered at data
 coordinates. This option automatically sets the B<-sameunits> option.
 
-B<-sidelength> I<SIDELENGTH> 
+B<-sidelength> I<SIDELENGTH>
 length of sides of polygons covering the density plot. By
 default, this is computed automatically and this option need not be given.
 
-B<-xsidelength> I<SIDELENGTH> 
+B<-xsidelength> I<SIDELENGTH>
 length of sides on x-axis. Use only if -nosameunits
 and -noautolength are both set.
 
-B<-ysidelength> I<SIDELENGTH> 
+B<-ysidelength> I<SIDELENGTH>
 length of sides on y-axis. Use only if -nosameunits
 and -noautolength are both set.
 
-B<-autolength>  B<-noautolength>  
+B<-autolength>  B<-noautolength>
 (default) compute length of side of polygon from smallest distance
 between data points.
 
@@ -723,20 +723,20 @@ B<-aspectratio> I<VALUE>
 Sets the aspect ratio of the plot area. A value of 1 is square. A value greater (less) than 1 makes
 a wide (tall) plot.
 
-B<-numberpoly>  B<-nonumberpoly>  
+B<-numberpoly>  B<-nonumberpoly>
 write numeric value in each hexagon.
 
 B<-polyborder> B<-nopolyborder>
 draw a black border around each polygon or not
 
-B<-lattice> B<-nolattice> 
+B<-lattice> B<-nolattice>
 draw the underlying triangular lattice. If used with square lattice
 the results will be nonsensical.
 
-B<-latticegray>  I<GRAYVALUE> 
+B<-latticegray>  I<GRAYVALUE>
 shade for the lattice lines if drawn
 
-B<-xmin>,  B<-xmax,-ymin,-ymax>  I<FLOAT>  
+B<-xmin>,  B<-xmax,-ymin,-ymax>  I<FLOAT>
 set boundaries of plot area, overriding automatic boundaries.  If
 I<FLOAT> is ommitted, then the corresponding boundary is once again
 set automatically.  If these are set interactivly, you must reread the
@@ -745,7 +745,7 @@ use B<read> and then B<plot>.)
 
 =head2      Density to Color map:
 
-B<-cmgray>  
+B<-cmgray>
 Make a grayscale density plot. That is, the value of the data is represented by shades of gray.
 
 With the following three color maps, the value of the data is represented
@@ -753,7 +753,7 @@ by the named color parameter (hue,saturation, or brightness). In each case
 the remaining two color parameters may be set manually and will change the
 appearance of the plot.
 
-B<-cmhue> 
+B<-cmhue>
 (default)  set color map to 'hue' for density plot. This is a 'false color'
 plot. If B<-cmhue> is set, then  B<-saturation> and B<-brightness> set constant
 saturation and brightness
@@ -778,14 +778,14 @@ An optional argument sets the hue.
 The following three parameters set to a constant any hsb values that are I<not> mapped
 from the data via  the color map chosen above. That is, B<-hue>, has no effect if B<-cmhue> is chosen, etc.
 
-B<-hue>  I<HUE> 
+B<-hue>  I<HUE>
 (default 1) from 0 to 1. Sets the hue of the colors representing the data.
 This only has an effect if the hue is not controlled by the color map.
 
-B<-saturation>  I<SATURATION> 
+B<-saturation>  I<SATURATION>
 (default 1) from 0 to 1. Sets the saturation of the colors representing the data.
 
-B<-brightness>  I<BRIGHTNESS> 
+B<-brightness>  I<BRIGHTNESS>
 (default 1) from 0 to 1.  Sets the brightness of the colors representing the data.
 
 The raw data is normalized so that it can be mapped to color hues
@@ -794,20 +794,20 @@ and lower limits of this normalization can be changed. If grayscale plot is chos
 then these cmlo and cmhi are interpreted instead as grayscale values. If B<-cmsaturation> is
 chosen, they are interpreted as saturation values, and likewise with B<-cmbrightness>.
 
-B<-cmlo>  I<HUE> 
+B<-cmlo>  I<HUE>
 (HUE is from 0 to 1 )(default 0) Lowest value of range of hue in mapping data to hue
 
-B<-cmhi>  I<HUE>  
+B<-cmhi>  I<HUE>
 (HUE is from 0 to 1) (default 1) Upper limit of range of hue.
 For example, if these values for range of color parameter are reversed, the color mapping is reversed.
 
-B<-uselinear> 
+B<-uselinear>
 (default) Do not raise the data values to a power prior to plotting.
 
-B<-usepower>   
+B<-usepower>
 raise data values to a power before mapping to colors
 
-B<-power> I<POWER> 
+B<-power> I<POWER>
 (default value .5) power to use with B<-usepower> for scaling data for color/grayscale map.
 
 =head2     Labels, Ticks, Axes, Border, Key etc:
@@ -815,11 +815,11 @@ B<-power> I<POWER>
 B<-title> I<'The Title'>
 plot title drawn above frame.
 
-B<-titleyoffset> I<FRAC> 
+B<-titleyoffset> I<FRAC>
 Fractional part of frame height by which title is separtated from
 frame. Ie, use this to move the title up and down.
 
-B<-titlexoffset> I<FRAC> 
+B<-titlexoffset> I<FRAC>
 Fractional part of plot width by which title is separtated from
 frame. Ie, use this to move the title left and right.
 
@@ -848,32 +848,32 @@ B<-ylabelyoffset> I<FRAC>
 (default 0) Shift the ylabel up or down by I<FRAC> times
 the plot height.
 
-B<-fontscale> I<SCALE> 
+B<-fontscale> I<SCALE>
 (default value 1.0) Scale all character fonts by this factor. Characters
 in various places have their own scaling; ie title, key, etc. B<fontscale> is an additional
 factor that multiplies each of these.
 
-B<-subscale> I<SCALE> 
+B<-subscale> I<SCALE>
 Scale subscript relative to normal script by this amount.
 
-B<-supscale> I<SCALE> 
+B<-supscale> I<SCALE>
 Scale superscript relative to normal script by this amount.
 
-B<-ssupscale> I<SCALE> 
+B<-ssupscale> I<SCALE>
 Scale super-superscript relative to normal script by this amount.
 
-B<-listcolors> I<N>  
+B<-listcolors> I<N>
 print a list of color names (about 400) for use in strings (for the title, etc.)
 If I<N> is given, then color names are listed in I<N> columns. I<N> defaults to four if the argument
 is omitted.
 
-B<-findcolors> I<STRING> 
+B<-findcolors> I<STRING>
 print a list of all color names
 that contain I<STRING> as a substring. For example:
 C<hexdens -findcolors red> lists all colors with 'red' in
 the name.
 
-B<-listsymbols> I<N>  
+B<-listsymbols> I<N>
 print a list of Adobe symbols for use in strings (for the title, etc.)
 If I<N> is given, then symbol names are listed in I<N> columns. I<N> defaults to four if the argument
 is omitted. A few aliases to latex symbol names are given.
@@ -882,10 +882,10 @@ B<-key>  B<-nokey>
 draw the color key. The color key shows the numerical value
 correpsonding to colors on the plot. Default is set.
 
-B<-keynbars>  I<NUM> 
+B<-keynbars>  I<NUM>
 (default 33) the number of bars (that is the number of different colors) to draw in the color key.
 
-B<-keylabelskip>  I<NUM> 
+B<-keylabelskip>  I<NUM>
 (default 4) Print a numerical label on a color bar in the key for
 only every NUMth bar. By default there are then 9 numerical labels on the color bars.
 
@@ -908,40 +908,40 @@ B<-keyexpraise> I<NUM>
 
 
 
-B<-explim> 
-(default 1) largest power of ten to write in normal, rather than scientific 
+B<-explim>
+(default 1) largest power of ten to write in normal, rather than scientific
 notation in the key.
 
 B<-keydigits> I<DIGITS>
 (default 2) Number of digits to write in mantissa in key labels.
 
-B<-ticklabeloffset> 
+B<-ticklabeloffset>
 changes distance of tick from frabme
 
-B<-ticksshiftouter> B<-noticksshiftouter> 
+B<-ticksshiftouter> B<-noticksshiftouter>
 (default unset) Offset the outermost ticks slightly to make them more visible
 in case they are obscured by the frame.
 
-B<-ticklinew>  I<NUM> 
+B<-ticklinew>  I<NUM>
 scale factor for width of tick lines
 
-B<-axislinew>  I<NUM> 
+B<-axislinew>  I<NUM>
 scale factor for width of line in axes
 
-B<-polylinew>  I<NUM> 
+B<-polylinew>  I<NUM>
 scale factor for width of line around polygon
 
-B<-framelinew>  I<NUM> 
+B<-framelinew>  I<NUM>
 scale factor for width of line in frame.
 
-B<-ticklength>  I<NUM> 
+B<-ticklength>  I<NUM>
 (default 1) A scale factor for the ticklength.
 
 
 These are scale factors for text in various places on the plot. In addition, there
 is an overall scale factor set by B<-fontscale>.
 
-B<-tickfontscale> I<NUM> 
+B<-tickfontscale> I<NUM>
 Scale factor for text labeling ticks (default 1)
 
 B<-keyfontscale> I<NUM>
@@ -953,7 +953,7 @@ B<-exponentfontscale> I<NUM>
 
 B<-numberpolyfontscale> I<NUM>
 
-B<-shownorm>  
+B<-shownorm>
 show range of hue values rather than raw data range in key (see B<-showraw>)
 
 B<-showraw>
@@ -986,38 +986,38 @@ Draw tick marks on bottom side of frame
 B<-frame> B<-noframe>
 Draw a rectangular frame around the plot (default true)
 
-B<-xbuf> I<XFRAC> , B<-ybuf> I<YFRAC>, B<-buf> I<FRAC> (default 0.03)  
+B<-xbuf> I<XFRAC> , B<-ybuf> I<YFRAC>, B<-buf> I<FRAC> (default 0.03)
 space left between plot and frame as a fraction of
 plot width. In interactive mode, you must use B<replot> for this change to take effect. Use B<-buf> to
 set both the x and y buffer fractions to the same value.
 
 =head2  Output:
 
-B<-outfile> I<FILENAME> 
+B<-outfile> I<FILENAME>
 write the plot to file I<FILENAME> rather than the default, which is to append
 a filename suffix (.ps,.eps,.pdf) to the input filename.
 
-B<-infile> I<FILENAME> 
+B<-infile> I<FILENAME>
 The final non-option arguments on the command line are also interpreted as
 input filenames. This is intended for interactive use. But the B<plot>
 command also can set the input filename.
 
-B<-display> B<-nodisplay> 
+B<-display> B<-nodisplay>
 Launch external viewer if possible (ghostview by default). The command to launch
 the viewer is given by the C<$GvExe> and C<$GvOpts> parameters.
 If unset, theen suppress launching viewer, even in interactive mode.
 
-B<-plotwidth> I<PLOTWIDTH>  (default 12) 
+B<-plotwidth> I<PLOTWIDTH>  (default 12)
 the width of the plotted data area in centimeters. If the plot
 is too big for the page and eps or pdf are requested, then the plot is automatically rescaled
 to fit on the page.
 
-B<-viewer> I<VIEWERNAME> 
+B<-viewer> I<VIEWERNAME>
 (default C<xpdf>) Name of the viewer program used to view plots interactively.
 This may be one of C<xpdf> and C<gv>. In interactive mode, C<set viewer TAB TAB>
 may show a choice of viewers.
 
-B<-viewerscale> I<SCALE> 
+B<-viewerscale> I<SCALE>
 If using gv as a viewer, scale (that is, magnify) the viewing area by
 this amount. If you use a different viewer, change the variable $ViewerScaleOpt in the
 configuration file.
@@ -1025,7 +1025,7 @@ configuration file.
 Note that if you change the file type in interactive mode with the following three commands, you
 must enter B<viewer> to launch a new viewer for the new output plot.
 
-B<-ps>       
+B<-ps>
 Set the output file format to ps, PostScript.
 
 B<-eps>
@@ -1034,7 +1034,7 @@ Set the output file format to eps, Encapsulated PostScript.
 
 B<-pdf>
 Set the output file format to pdf. (default)
-(must have ghostscript installed)  
+(must have ghostscript installed)
 
 B<-latexrun>  B<-nolatexrun>
 (default unset) Process the text (eg in title and labels) as latex commands. This calls
@@ -1057,8 +1057,8 @@ Increase this if part of the plot is clipped at the edge. Decrease this if too m
 is shown around the plot. (This is relevant for 'eps' and 'pdf' formats)
 
 B<-whitebox> B<-nowhitebox>
-(default on) Draw a white (invisible) frame around 
-the entire plot (including amount specified by option B<bbpad>.) 
+(default on) Draw a white (invisible) frame around
+the entire plot (including amount specified by option B<bbpad>.)
 Some programs such as ipe recompute the bounding box, which defeats
 the purpose of bbpad. This white frame prevents these programs from erroneously clipping
 visible parts of the plot.
@@ -1072,7 +1072,7 @@ Rotate the plot by 90 degrees.
 =head2  Miscellaneous:
 
 B<-readline> B<-noreadline>
-If set, (some of) command history, commandline editing and command completion are 
+If set, (some of) command history, commandline editing and command completion are
 enabled. This only works in interactive mode and depends on having one of
 the  perl readline libraries installed (only the perl gnu readline library provides completion).
 
@@ -1091,24 +1091,24 @@ If B<-grided> then  the data file must have rows separated by newlines interpret
 The number in row j, column i is the value of a data point at position i,j;
 that is, the data is assumed to be on a grid of unit squares.
 
-B<-ex> I<n>  
+B<-ex> I<n>
 write example plot number I<n>. If B<-display> is given, show plot in viewer.
 
-B<-demo> I<n>  
+B<-demo> I<n>
 write and display all example plots. If optional number I<n> is given,
 there is a pause of I<n> seconds between plots. Otherwise the user is prompted
 for the next example.
 
-B<-v>   
+B<-v>
 verbose print more messages during operation.
 
-B<-version>  
+B<-version>
 print hexdens version number. Exit if not in interactive mode.
 
-B<-test>  
+B<-test>
 run the test suite. requires first running B<-generatetest> with a good copy of hexdens.
 
-B<-generatetest> 
+B<-generatetest>
 generate the test suite. only for development. Currently broken
 
 =for trihelp options stop
@@ -1167,7 +1167,7 @@ In summary, parameters are set in this order: 1) internal (default) parameters,
 4) parameters in F<save.hexdens> (saved with the B<save> command),
 5) parameters
 given on the command line. 6) parameters set interactively.
-In this list, settings with higher numbers override 
+In this list, settings with higher numbers override
 settings with lower numbers. In addition, the command B<load> can be used at anytime interactively
 to restore parameters settings that were saved with B<save> F<FILENAME>.
 
@@ -1266,7 +1266,7 @@ sub Shell::tri_readline {
 
     # ornament support (now prompt only)
     $prompt = ${$Attribs->{term_set}}[0] . $prompt . ${$Attribs->{term_set}}[1];
-    
+
     $Attribs->{completion_entry_function} = $Attribs->{_trp_completion_function}
 	if (!defined $Attribs->{completion_entry_function}
                 && defined $Attribs->{completion_function});
@@ -1395,7 +1395,7 @@ sub Shell::command_completion_function {
     }
     if ($line =~ /^\s*(set|se)\s+batch/ ) {
         return (); # empty list defaults to filename completion
-    } 
+    }
     if ( $line =~ /^\s*(show|sh|sho)\s+[^\s]*$/ ) {
 	$completion_words =  \@Hexdens::Optlistnames_show;
     }
@@ -1452,7 +1452,7 @@ sub Shell::command_completion_function {
     '!' => sub { my $s = `$_[0]`; chomp($s); $s },
     'fshow' =>
          sub { &Hexdens::print_all_parameters( $_[0] ); return undef },
-    'gset'    => sub { 
+    'gset'    => sub {
 	my ($opt) = @_;
 	my ($arg,$h);
 	    if ( exists $Hexdens::OptHandlers{$opt}) {
@@ -1463,7 +1463,7 @@ sub Shell::command_completion_function {
 		return;
 	    }
 	    if ( ref($h) ne 'ARRAY' and exists $h->{GUI} and  $h->{GUI} eq 'inputfile' ) {
-		    $arg = &Hexdens::get_kdialog_openfilename(); 
+		    $arg = &Hexdens::get_kdialog_openfilename();
 	    }
 	    else {
 		print "Can't gset that option\n";
@@ -1509,12 +1509,12 @@ sub Shell::command_completion_function {
         'h' => sub { &Hexdens::show_short_help(); undef; },
         'save' => sub { &Hexdens::dump_parameters(@_); },
         'load' => sub { &Hexdens::load_parameters(@_); },
-                       
+
     );
 
 
     # perl gnu readline is a miserably fucked up package.
-    # It is impossible to get simple reasonable behavior out 
+    # It is impossible to get simple reasonable behavior out
     # of it. But it takes forever to figure that out because
     # the docs are so miserable and fucked up.
     # Eg, whoever wrote the interface added a great 'autohistory' feature
@@ -1604,7 +1604,7 @@ sub Shell::run_shell {
     # fonts , etc. should be handled through a data structure
     # that also does checking with check_string_args below
     # I think that the first two examples in the perl/gnu readline manual will
-    # 
+    #
 
     $term = start_readline() if ( $Hexdens::UseReadline == TRUE );
 
@@ -1630,7 +1630,7 @@ sub Shell::run_shell {
             $Hexdens::BatchFile = undef;
         }
         if ( $Hexdens::UseReadline == FALSE ) {
-	     $term = undef; 
+	     $term = undef;
 	}
 	else {
 	    $term = start_readline() unless defined $term;
@@ -1822,17 +1822,17 @@ our (%DataFileInfo);
 
 =for comment
  The default values of the user parameters are set be eval'ing
- the string $ParameterList. This string can also be printed to 
+ the string $ParameterList. This string can also be printed to
  a file that can be edited and read, as well.
 
-=cut 
+=cut
 
 BEGIN {
-    
+
     our $ParameterList = <<'EOPARAMS';
 
 # You can use TRUE or 1 to set options and FALSE or 0 to unset them.
-    
+
 # Set to TRUE to run in interactive mode.
 $RunShell = FALSE;
 
@@ -1855,7 +1855,7 @@ $LandScape = FALSE;
 
 # Use color or grayscale to denote data value.
 # color 1, grayscale 0
-$ColorMap = 'hue';  
+$ColorMap = 'hue';
 #$ColorMap = 'cmgray';
 #$ColorMap = 'saturation';
 
@@ -1865,10 +1865,10 @@ $XLabel = '';
 $YLabel = '';
 $Title = '';
 # Distance from plot border to title as fraction of plot height
-$TitleYOffset = 0.07; 
+$TitleYOffset = 0.07;
 
 # move title some from center
-$TitleXOffset = 0; 
+$TitleXOffset = 0;
 # set this to 1 or 0 to rotate the y axis label or not
 $RotateYLabel = FALSE;
 
@@ -1881,7 +1881,7 @@ $RTickDraw = TRUE;
 $FrameDraw = TRUE;
 
 # for labeling tick marks, numbers smaller than this are zero.
-$ZeroAbs = 1e-12;  
+$ZeroAbs = 1e-12;
 
 # if a number is closer than this to a power of 2. Replace it with
 # closest integer in test for power of 2 for tick marks.
@@ -1919,7 +1919,7 @@ $DetectDataFormat = TRUE;
 # Input x and y values for data should then be
 #  points on a triangular lattice.
 # If the lattice spacing on the triangular lattice is 1, then the
-# correct hexagon has side length 1/sqrt(3), and is rotated 
+# correct hexagon has side length 1/sqrt(3), and is rotated
 # 30 degrees.
 #$NumberOfSides = 6;
 #$LengthOfSide =   1/sqrt(3);
@@ -1953,7 +1953,7 @@ $PSFormat = 'pdf';
 $BoundingBoxPad = 5;
 
 # draw a white (invisible) box around entire plot image, to prevent
-# other programs from recomputing bounding box and removing the 
+# other programs from recomputing bounding box and removing the
 # BoundingBoxPad
 $WhiteBoxDraw = TRUE;
 
@@ -2096,7 +2096,7 @@ $Brightness = 1;
 # to the right by a distance 7% of the frame width.
 # Key height will be frame height times $KeyHeight.
 # So $KeyHeight=1 make the key run the entire length of the frame
-# $KeyWidth is fraction of frame width. 
+# $KeyWidth is fraction of frame width.
 $KeyYOffset = 0.0;
 $KeyXOffset = 0.1;
 #$KeyWidth = 0.04;
@@ -2149,7 +2149,7 @@ $ExponentScale   = 0.75; # scale down size of displayed exponent
 # This is ignored if you choos $PSFormat = 'eps' or 'pdf'
 $WriteBBox = FALSE;
 
-# Command Name of PostScript interpreter 
+# Command Name of PostScript interpreter
 # (probably gs for ghostscript)
 # Set this to '' to probe automatically.
 #$PostScriptInterpreter = 'gs';
@@ -2231,7 +2231,7 @@ $InterpolateCmd = FALSE;
 
 # This chooses from  3 to 7 tick marks.
 # Preference is given to more ticks:
-#@Divisions = (7,6,5);  
+#@Divisions = (7,6,5);
 @Divisions = (7,6,5,4,3);
 
 # Some Tick Options
@@ -2377,7 +2377,7 @@ sub ourwhich {
 {    # initialization block
 
     $ShortHelp = <<"EOSHH";
-Usage: hexdens [options] infilename ... 
+Usage: hexdens [options] infilename ...
 
 infilename ... are the input data files
 
@@ -2412,7 +2412,7 @@ EOSHH
         'cmsatbright:f', 'title=s',      'titleyoffset=s', 'titlexoffset=s',
         'xlabelxoffset=f', 'ylabelxoffset=f', 'xlabelyoffset=f',
         'ylabelyoffset=f',
-        'explim=i', 'keydigits=i', 
+        'explim=i', 'keydigits=i',
 	'viewerpid=i', 'viewer:s', 'readline!',
 	'fontscale=f',
         'display!', 'batch=s',     'grided!',  'autodata!',
@@ -2421,7 +2421,7 @@ EOSHH
         'keywidth=f', 'keyheight=f', 'keyxoffset=f',   'keyyoffset=f',
         'xaxis!',   'yaxis!',  'ticksb!', 'tickst!','ticksl!', 'ticksr!',
         'ticks!',
-        'axis!', 'usepower!', 'uselinear!', 
+        'axis!', 'usepower!', 'uselinear!',
         'numberpoly!', 'square', 'tri', 'circle', 'ps', 'eps',
         'numberpolyfontscale=f', 'viewerscale=f', 'font=s', 'pdf'
         ,             'sidelength=s', 'xsidelength=s', 'ysidelength=s',
@@ -2727,7 +2727,7 @@ EOSHH
             { VAR => 'GridDataFile', VAL => 1, VALTYPE => 'bool' },
             { VAR => 'AutoLength',   VAL => 0, VALTYPE => 'bool' }
         ],
-        autodata => 
+        autodata =>
 	      { VAR => 'DetectDataFormat' , VAL => 1, VALTYPE => 'bool' },
         viewerpid => { VAR => 'ViewerPid', OPTVAL => 1 },
         font      => {
@@ -2844,7 +2844,7 @@ EOSHH
 # Some fragments, such as `B<demo>' are not extracted because
 # For neither command or option are they formatted correctly.
 #
-# Thus far, only options from the pod doc are entered here. (and 
+# Thus far, only options from the pod doc are entered here. (and
 # whether to use set , show, or a command is sometimes muddled)
 #
 # There is a bug that causes last help item before trihelp command stop
@@ -2924,7 +2924,7 @@ EOSHH
 #                    deb $HelpInteractive{$option} if ($help_type eq 'commands');
 		}
 	    }
-	    
+
 	}
 	close($fh);
         foreach (keys %HelpInteractive) { $HelpInteractive{$_}=
@@ -2934,7 +2934,7 @@ EOSHH
 
 
     foreach my $okey ( keys %OptHandlers ) {
-        my $hand = $OptHandlers{$okey};    
+        my $hand = $OptHandlers{$okey};
         $hand = [$hand]
           unless ref($hand) eq 'ARRAY';    # put single handler in an array
         foreach my $h (@$hand) {
@@ -2945,7 +2945,7 @@ EOSHH
 	    }
         }
     }
-    
+
     # save most parameters to a file
     sub dump_parameters {
         my ($fname) = @_;
@@ -3074,7 +3074,7 @@ EOSHH
         my ( $val, $h ) = @_;
         return $val unless exists $h->{CHK};
 	my ($code,$res);
-	if ( exists $h->{VALTYPE} and $h->{VALTYPE} eq 'string' and 
+	if ( exists $h->{VALTYPE} and $h->{VALTYPE} eq 'string' and
 	   ref($h->{CHK}) eq 'ARRAY'  ) {
 	    my $legal_args = $h->{CHK}->[0];
 	    my $msg = $h->{CHK}->[1];
@@ -3960,7 +3960,7 @@ sub process_data_file_line_find_empty_lines {
     #     open INH, "<$file" or herror "Can't open '$file' for reading.";
     #     my $first_data = FALSE;
     #     while (<INH>) {
-    #         if ( /^\s*$/ ) { 
+    #         if ( /^\s*$/ ) {
     #             if ( $first_data == FALSE  )  {
     #                 while ( <INH> ) {
     #                     last unless /^\s*$/;
@@ -3989,7 +3989,7 @@ sub process_data_file_line_find_empty_lines {
     # }
 
 
-    
+
     sub detect_data_file_format  {
 	my ($file) = @_;    # data filename
 	open my $fh, '<' , $file or herror "Can't open '$file' for reading.";
@@ -4023,10 +4023,10 @@ sub process_data_file_line_find_empty_lines {
         # are set, but we have a data file like this
         # 1 2 3
         # 4 5 6
-        # 7 8 
+        # 7 8
         # The list line is invalid, but it is simply skipped.
         # And $data_file_format is unset. So, we initialize it
-        # here. Perhaps it is better to halt with an error if there 
+        # here. Perhaps it is better to halt with an error if there
         # is a bad data line.
         my $data_file_format = '';
         if ( not defined $file ) { herror("No input file"); return undef; }
@@ -4325,7 +4325,7 @@ sub process_data_file_line_find_empty_lines {
          my $i;
          my  $str = '';
          my  ( $x, $y );
-        
+
       #    if ($NumberOfSides == 3) { broken now
       #         for ($i=0;$i<@Xs;$i++) { # plot the data
       #	   if ($i % 2 == 0){  $str .= pshex( $Xs[$i] ,  $Ys[$i], $b[$i]  );}
@@ -4772,7 +4772,7 @@ set -title 'Hello'
 show -title
 set -title '\red Hello'
 show -title
-exit	
+exit
 EOBATCH1
 
 # old    { IN => { COM => "$td" }, OUT => { MATCH => "No input file specified; try option" }},
@@ -5170,7 +5170,7 @@ sub make_key_color_boxes {
         # For this, we need a routine like drawscinot that computes the
         # text width and pushes it on the stack.
         $s .= <<"EOK"
- keyxpos keyypos $i keybarheight mul add moveto	
+ keyxpos keyypos $i keybarheight mul add moveto
  0 keybarheight rlineto
  keywidth 0 rlineto
  0 keybarheight neg rlineto
@@ -5181,7 +5181,7 @@ sub make_key_color_boxes {
  grestore
 % $KeySepGray setgray stroke
  newpath
- keyxpos keywidth 1.2 mul add 
+ keyxpos keywidth 1.2 mul add
  keyypos $i .2 add keybarheight mul add moveto
  0 setgray
  $val
@@ -6438,12 +6438,12 @@ sub get_kdialog_openfilename {
         my %lastfont;
         my @text;
         if ( $LatexRun == TRUE ) {
-            @text = parse_text_string($text) 
+            @text = parse_text_string($text)
 #            $text =~ s/\\/\\\\/g;    # double the backslash
 #            @text = ( { TEXT => $text } );
         }
         else {
-            @text = parse_text_string($text) 
+            @text = parse_text_string($text)
         }
         unshift( @text, { FONT => 'rm' } );
         my $scriptstate = '-';
@@ -7002,17 +7002,17 @@ pagewidth 2 div  xcent sub pageheight 2 div  ycent sub translate
 
 
 $font_declarations_com
-/ticklabelfont /$PlainFontname  findfont tickfontheight scalefont def 
-/keyfont /$PlainFontname  findfont keyfontheight scalefont def 
-/keysymfont /Symbol  findfont keyfontheight scalefont def 
+/ticklabelfont /$PlainFontname  findfont tickfontheight scalefont def
+/keyfont /$PlainFontname  findfont keyfontheight scalefont def
+/keysymfont /Symbol  findfont keyfontheight scalefont def
 /axislabelfont /$PlainFontname findfont axislabelfontheight scalefont def
-/numberpolyfont /$PlainFontname  findfont numberpolyfontheight scalefont def 
+/numberpolyfont /$PlainFontname  findfont numberpolyfontheight scalefont def
 
 % x point font is actually shorter than x points.
 % dividing by this gives approximate height
 /rfontheight 1.333 def
 
-% 
+%
 /rtickfontheight tickfontheight rfontheight div def
 /rkeyfontheight keyfontheight rfontheight div def
 /rnumberpolyfontheight numberpolyfontheight rfontheight div def
@@ -7035,7 +7035,7 @@ $font_declarations_com
     currentpoint translate
     $SetDensityColor
     hexpoly ufill
-    0 setgray 
+    0 setgray
     hexpoly ustroke
     grestore
 } bind  def
@@ -7044,7 +7044,7 @@ $font_declarations_com
     gsave
     polyfill
     grestore
-    0 setgray 
+    0 setgray
     stroke
 } bind  def
 
@@ -7053,12 +7053,12 @@ $font_declarations_com
 % not used apparantly
 /Spd {
     /pcy exch def
-    /pcx exch def    
+    /pcx exch def
     gsave
     newpath
     pcx pcy moveto % move to center of poly
     polysidelength polysidelength  scale
-    polyrotation rotate	
+    polyrotation rotate
     polypaint
     grestore
     $trihex_com
@@ -7068,12 +7068,12 @@ $font_declarations_com
 % This is the favored routine.
 /pd {
     /pcy exch def
-    /pcx exch def    
+    /pcx exch def
     gsave
     newpath
     pcx pcy moveto % move to center of poly
     xpolysidelength ypolysidelength  scale
-    polyrotation rotate	
+    polyrotation rotate
     whichpoly  % add poly sides to path
     closepath
     polypaint
@@ -7083,12 +7083,12 @@ $font_declarations_com
 
 /pdr {
     /pcy exch def
-    /pcx exch def    
+    /pcx exch def
     gsave
     newpath
     pcx pcy moveto % move to center of poly
     polysidelength polysidelength  scale
-    polyrotationtwo rotate	
+    polyrotationtwo rotate
     whichpoly  % add poly sides to path
     closepath
     polypaint
@@ -7187,7 +7187,7 @@ $font_declarations_com
    moveto
    currentpoint translate
    polysidelength polysidelength  scale
-   polyrotation rotate	    
+   polyrotation rotate
 
    0 //sst moveto
    0 //sst neg lineto
@@ -7226,7 +7226,7 @@ $font_declarations_com
        0 //ybhi //bheight add rmoveto
        0  //ybhi //bheight add 2 mul neg rlineto
     } for
-    60 rotate  
+    60 rotate
    } repeat
    closepath
    currentlinewidth .3 mul setlinewidth
@@ -7246,12 +7246,12 @@ $font_declarations_com
     0 -1  rlineto
     -1 0 rlineto
     0  1 rlineto
-} bind def 
+} bind def
 
 
 /circlepoly {  % stack empty
   currentpoint 1 0 360 arc
-} bind def 
+} bind def
 
 
 /drawframe {
@@ -7307,7 +7307,7 @@ $font_declarations_com
     labxtick labytick moveto
     dup   % label
     stringwidth pop
-    neg 2 div   rtickfontheight neg 
+    neg 2 div   rtickfontheight neg
     ticklabeloffset sub  rmoveto
 %    neg 2 div   0  rmoveto
     show  % pop label
@@ -7395,7 +7395,7 @@ $font_declarations_com
   yblo Position bh add
   moveto
   Text stringwidth  pop neg 2 div 0 rmoveto
-  Text show  
+  Text show
   grestore
 } def
 
@@ -7406,21 +7406,21 @@ $font_declarations_com
   /mantissa exch def
   (A) stringwidth pop
   /charsh exch 0 mul def
-  mantissa show 
+  mantissa show
   ( ) show
   keysymfont setfont
   (\264) show
   keyfont setfont
   ( ) show
-  charsh  .4 rkeyfontheight mul rmoveto 
-  gsave 1.5 1.5 scale 
+  charsh  .4 rkeyfontheight mul rmoveto
+  gsave 1.5 1.5 scale
   grestore
-  0  -.4 rkeyfontheight mul rmoveto 
+  0  -.4 rkeyfontheight mul rmoveto
   charsh 2 div 0 rmoveto (10) show
 %  mantissa stringwidth pop
 %  .8 rfontheight mul rmoveto
   0  $KeyExpRaise rkeyfontheight mul rmoveto
-  gsave   
+  gsave
   $ExponentScale $ExponentScale scale
   exponent show
   grestore
@@ -7435,18 +7435,18 @@ $font_declarations_com
   (A) stringwidth pop dup
   /charsh exch .4 mul def
   /dotrad exch .1 mul def
-  mantissa show 
-  charsh  .4 rkeyfontheight mul rmoveto 
-  gsave 1.5 1.5 scale 
+  mantissa show
+  charsh  .4 rkeyfontheight mul rmoveto
+  gsave 1.5 1.5 scale
   currentpoint dotrad 0 360 arc fill
-%  (.) show 
+%  (.) show
   grestore
-  0  -.4 rkeyfontheight mul rmoveto 
+  0  -.4 rkeyfontheight mul rmoveto
   charsh 2 div 0 rmoveto (10) show
 %  mantissa stringwidth pop
 %  .8 rfontheight mul rmoveto
   0  $KeyExpRaise rkeyfontheight mul rmoveto
-  gsave   
+  gsave
   $ExponentScale $ExponentScale scale
   exponent show
   grestore
@@ -7519,7 +7519,7 @@ TOPEOL
 =begin comment
 
  Routines for computing ticks; These routines are independent of the
- rest of the program. These routines are a perl translation 
+ rest of the program. These routines are a perl translation
  (and modification) of  Numeric Python routines. The python routines carry
  the following copyright notice.
 
@@ -7752,7 +7752,7 @@ sub is_power_2 {
 
        Calculate the tick intervals for a graph axis.
 
-        Description:        
+        Description:
         The boundaries for the data to be plotted on the axis are:
             data_bounds = (lower,upper)
 
@@ -7760,7 +7760,7 @@ sub is_power_2 {
         and tick intervals at 1, 2, 2.5, 5, 10, 20, ...
 
         Returns:
-        interval -- float. tick mark interval for axis            
+        interval -- float. tick mark interval for axis
 
 =end comment
 
@@ -7918,7 +7918,7 @@ sub calc_bound {
 =begin comment
 
         Find an axis end point that includes the value 'end_point'.  If the
-        tick mark interval results in a tick mark hitting directly on the 
+        tick mark interval results in a tick mark hitting directly on the
         end_point, end_point is returned.  Otherwise, the location of the tick
         mark just past the end_point is returned. end is 'lower' or 'upper' to
         specify whether end_point is at the lower or upper end of the axis.

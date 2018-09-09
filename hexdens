@@ -4799,7 +4799,7 @@ EOBATCH1
           };
     }
     if ( $generate == TRUE ) {
-        verbose "mkdir $testdir" unless -e "$testdir";
+        verbosesys "mkdir $testdir" unless -e "$testdir";
     }
     foreach my $t (@tests) {
         $total++;

@@ -2299,7 +2299,6 @@ sub dosys {
 sub verbose {
     my $mess = shift;
     print STDERR "$mess\n" if $Hexdens::Verbose == TRUE;
-#    print STDERR "$mess\n";
 }
 
 # No carriage return

@@ -7,7 +7,7 @@ eval 'exec perl -x -wS $0 ${1+"$@"}'
 
 Hexdens density plot program
 
-Copyright 2003, 2011, 2014 John Lapeyre, All rights reserved.
+Copyright 2003--2018 John Lapeyre, All rights reserved.
 This program is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation; either version 2, or (at your option)

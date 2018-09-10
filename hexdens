@@ -1123,7 +1123,7 @@ ghostscript (C<gs>) must  be installed to produce eps and pdf output.
 
 ghostview (C<gv>) or C<xpdf> must be installed if you want
 hexdens to launch viewers at the appropriate time. C<xpdf> is
-the preferred option. User of other viewers is not supported.
+the preferred option. Use of other viewers is not supported.
 
 While not necessary for interactive mode, a perl readline
 package must be installed in order for readline support
@@ -1134,7 +1134,7 @@ Command line completion in interactive mode is only supported if
 the perl gnu readline interfaces is avaialable. This will be in
 in a package named something like I<libterm-readline-gnu-perl>.
 
-The program I<ipe> is necessary for the B<-runlatex> option to process latex
+The program I<ipe> is necessary for the B<-latexrun> option to process latex
 text.
 
 If the perl module I<File::Which> is installed then it is used to search for

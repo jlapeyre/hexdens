@@ -8158,8 +8158,13 @@ sub plot_or_replot {
     }
     return unless do_norming();
     all_scale_transform() if $UseColTrans == TRUE;
-#    set_output_file_names($Infile);
-    set_output_file_names(strip_file_suffix($Outfile));
+    my $outfilebase;
+    if (defined $Outfile) {
+        $outfilebase = strip_file_suffix($Outfile); }
+    else {
+        $outfilebase = $Infile;
+    }
+    set_output_file_names($outfilebase);
     prepare_ps_file();
     write_output();
     check_viewer();

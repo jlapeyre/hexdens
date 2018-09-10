@@ -264,7 +264,7 @@ boolean options are set with B<set> and unset with B<unset>.
 When starting hexdens from the command line boolean options
 are unset by prefixing the option name with 'no'.  For
 example: C<set cmgray title 'title of plot'>, sets the title
-and sets grayscale mode.  On the commadline C<-nokey>
+and sets grayscale mode.  On the command line C<-nokey>
 supresses drawing the color key, while in interactive mode
 this is done with C<unset key>.  The leading '-' can be
 omitted in interactive mode (except when needed for

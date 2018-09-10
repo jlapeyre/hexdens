@@ -1198,12 +1198,6 @@ John Lapeyre <lapeyre aaat physics doot arizona dat edu>
 set xlabel '\eta' gives  "failed to return bounding box" error
   workaround is to use ' \eta'
 
-set cmlo 1   sometimes gives error about range, when the value is
-      actually ok. Try setting cmhi to something else first. Eventually,
-      I was able to set them to what I wanted.
-      Probably just need to add a variable check called nonnegfloat1
-      to use rather than posfloat1
-
 =head1 FILES
 
 Hexdens is distributed as a single file.
@@ -2670,7 +2664,7 @@ EOSHH
         keynbars     => { VAR => 'NumKeyBars',   OPTVAL => 1, CHK => 'posint' },
         keylabelskip => { VAR => 'KeyLabelSkip', OPTVAL => 1, CHK => 'posint' },
         cmhi => { VAR => 'ColorMapHi', OPTVAL => 1, CHK => 'posfloat1' },
-        cmlo => { VAR => 'ColorMapLo', OPTVAL => 1, CHK => 'posfloat1' },
+        cmlo => { VAR => 'ColorMapLo', OPTVAL => 1, CHK => 'nonnegfloat1' },
         latticegray =>
           { VAR => 'LatticeGray', OPTVAL => 1, CHK => 'posfloat1' },
         power =>
@@ -3054,6 +3048,7 @@ EOSHH
         'posint'      => \&is_posint,
         'nonnegint'   => \&is_nonnegint,
         'nonnegfloat' => \&is_nonnegfloat,
+        'nonnegfloat1' => \&is_nonnegfloat1
     );
 
     our %CheckNames = (
@@ -3133,6 +3128,15 @@ EOSHH
         $x = to_float($x);
         return if not defined $x;
         return if $x < 0;
+        return 1;
+    }
+
+    sub is_nonnegfloat1 {
+        my $x = shift;
+        $x = to_float($x);
+        return if not defined $x;
+        return if $x < 0;
+        return if $x > 1;
         return 1;
     }
 

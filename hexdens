@@ -28,7 +28,7 @@ package Hexdens;
 # =NAME.  I don't know a good place or way to include version number
 # in the user documentation. After an hour of googling I cannot find
 # any mention of the topic whatsoever.
-our $VERSION = '0.23';
+our $VERSION = '0.24';
 
 # use POSIX module for log10 and floor functions
 use POSIX;
@@ -47,7 +47,8 @@ my $HaveWhich = eval
   1;
 };
 
-sub deb;
+# Unused at the moment
+# sub deb;
 
 #  use this to avoid failure of the entire program if a function is missing
 #use autouse MODULENAME;
@@ -1109,7 +1110,8 @@ B<-test>
 run the test suite. requires first running B<-generatetest> with a good copy of hexdens.
 
 B<-generatetest>
-generate the test suite. only for development. Currently broken
+generate the test suite. Subsequent testing with `hexdens -test` will compare output
+to the generated files.
 
 =for trihelp options stop
 
@@ -1490,7 +1492,7 @@ sub Shell::command_completion_function {
                 &Hexdens::herror("example needs an example number between 1 and $Hexdens::NumberOfExamplePlots");
                 return;
             }
-            &Hexdens::do_example( $_[0], 'view' );
+            &Hexdens::do_example($_[0], 'view');
             $Hexdens::Outfile = undef;
         },
         'man'  => sub { &Hexdens::show_man_page();  undef; },
@@ -2673,7 +2675,7 @@ EOSHH
           { VAR => 'LatticeGray', OPTVAL => 1, CHK => 'posfloat1' },
         power =>
           { VAR => 'DataTransformPower', OPTVAL => 1, CHK => 'posfloat1' },
-        outfile   => { VAR => 'Outfile',   OPTVAL => 1, VALTYPE => 'string' },
+        outfile   => { VAR => 'Hexdens::Outfile',   OPTVAL => 1, VALTYPE => 'string', PRIORITY => 100 },
         infile   => { VAR => 'Infile',   OPTVAL => 1, VALTYPE => 'string', GUI => 'inputfile' },
         fontscale => { VAR => 'FontScale', OPTVAL => 1, CHK     => 'posfloat' },
         bbpad     => {
@@ -2920,7 +2922,6 @@ EOSHH
 		if ($option ne '' ) {
 		    $HelpInteractive{$option} = '' unless exists $HelpInteractive{$option};
 		    $HelpInteractive{$option} .= $line;
-#                    deb $HelpInteractive{$option} if ($help_type eq 'commands');
 		}
 	    }
 
@@ -2928,7 +2929,6 @@ EOSHH
 	close($fh);
         foreach (keys %HelpInteractive) { $HelpInteractive{$_}=
                                               convert_pod_fragment_to_text($HelpInteractive{$_});}
-#	print Dumper(\%HelpInteractive);
     }
 
 
@@ -3195,11 +3195,20 @@ EOSHH
             $setflags = { SET => 1 }
 
         }
-        foreach my $key ( keys %$opth ) {
+        my @keylist = ();
+        # Some option must be processed before others. This mechanism is just started.
+        # Only -outfile is given a priority. It must be processed after the image format.
+        foreach my $key (keys %$opth ) {
             next unless exists $OptHandlers{$key};
+            push @keylist, $key;
+            $OptHandlers{$key} = [$OptHandlers{$key}]
+                unless ref($OptHandlers{$key}) eq 'ARRAY';    # put single handler in an array
+            my $h = $OptHandlers{$key}->[0];
+            $h->{PRIORITY} = 1000000 unless exists $h->{PRIORITY};
+        }
+        @keylist = sort { $OptHandlers{$b}->[0] <=> $OptHandlers{$a}->[0] } @keylist ;
+        foreach my $key ( @keylist ) {
             my $hand = $OptHandlers{$key};    # h is the handler for option $key
-            $hand = [$hand]
-              unless ref($hand) eq 'ARRAY';    # put single handler in an array
             foreach my $h (@$hand) {
                 if ( exists $h->{VAR} ) {
                     my $var = $h->{VAR};
@@ -3211,8 +3220,6 @@ EOSHH
                         return;
                     }
                     if ( $SettingOpts == TRUE ) {
-
-                        #  print Dumper($opth);
                         if ( exists $h->{VAL} ) {    # set variable
                             my $val = $h->{VAL};
                             if (    exists $h->{VALTYPE}
@@ -3279,8 +3286,6 @@ EOSHH
                                 print $var . " = $s";
                                 print " " . $h->{UNIT} if exists $h->{UNIT};
                                 print "\n";
-#                                $s = eval( '$' . $var );
-#                                deb "on exit $s";
                             }
                         }
                     }
@@ -3431,7 +3436,6 @@ EOSHH
         }
         if ( exists $h->{hex} ) {    # this is broken
             $NumberOfSides = 3;
-
             #	$LengthOfSide =   1/(sqrt(3)) unless exists $h->{sidelength};
             #	$LengthOfSide =   sqrt(3)/2 unless exists $h->{sidelength};
             $LengthOfSide = 1.7 unless exists $h->{sidelength};
@@ -3599,11 +3603,15 @@ our $Epsfile;
 our $Ipefile;
 
 sub set_output_file_names {
-    my $Infile = shift;    # Infile is global, but this is flexible
-    $Psfile  = "$Infile.ps";
-    $Pdffile = "$Infile.pdf";
-    $Epsfile = "$Infile.eps";
-    $Ipefile = "$Infile.ipe";
+    my $infile = shift;
+    $Psfile  = "$infile.ps"; # todo. don't use interpolation
+    $Pdffile = "$infile.pdf";
+    $Epsfile = "$infile.eps";
+    $Ipefile = "$infile.ipe";
+    # print $Psfile, "\n";
+    # print $Pdffile, "\n";
+    # print $Epsfile, "\n";
+    # print $Ipefile, "\n";
 }
 
 # use this if the output format has changed to change the suffix.
@@ -3645,6 +3653,12 @@ sub strip_spaces {
     my ($s) = @_;
     $s =~ s/^\s+//;
     $s =~ s/\s+$//;
+    $s;
+}
+
+sub strip_file_suffix {
+    my ($s) = @_;
+    $s =~ s/(\.pdf|\.eps|\.ps)$//;
     $s;
 }
 
@@ -4778,7 +4792,7 @@ EOBATCH1
     my @tests = (
         {
             IN  => { COM   => "$td -version" },
-            OUT => { MATCH => "hexdens 0.017" }
+            OUT => { MATCH => 'hexdens ' . $VERSION }
         },
         { IN => { COM => "$td -h" }, OUT => { FILE => 'test_help_out' } },
         {
@@ -8123,13 +8137,16 @@ sub arg_check {
     croak "wrong number of arguments to $name" unless $test_result;
 }
 
+## Warning. $Outfile  = undef; was written below for some reason.
+## It broke properly setting the output file name.
+## But, whatever it was meant to fix is now probably broken
 sub plot_or_replot {
     arg_check( "plot_or_replot", @_ == 1 );
     my ($input_filename) = @_;
     if ( $input_filename =~ /\w/ ) {
         $Infile   = $input_filename;
         $HaveData = FALSE;
-        $Outfile  = undef;          # not sure if this will break something else
+#        $Outfile  = undef;          # not sure if this will break something else YES it will BROKE
     }
     my $res = 1;
     if ( defined $HaveData and $HaveData == TRUE ) {
@@ -8141,7 +8158,8 @@ sub plot_or_replot {
     }
     return unless do_norming();
     all_scale_transform() if $UseColTrans == TRUE;
-    set_output_file_names($Infile);
+#    set_output_file_names($Infile);
+    set_output_file_names(strip_file_suffix($Outfile));
     prepare_ps_file();
     write_output();
     check_viewer();

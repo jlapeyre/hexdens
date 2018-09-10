@@ -28,7 +28,7 @@ package Hexdens;
 # =NAME.  I don't know a good place or way to include version number
 # in the user documentation. After an hour of googling I cannot find
 # any mention of the topic whatsoever.
-our $VERSION = '0.25';
+our $VERSION = '0.26';
 
 # use POSIX module for log10 and floor functions
 use POSIX;
@@ -124,7 +124,7 @@ This file is organized (!) as follows from top to bottom:
 
 =head1  NAME
 
-B<hexdens> v0.25 --  create density plots on a triangular or square lattice in postscript
+B<hexdens> v0.26 --  create density plots on a triangular or square lattice in postscript
 or pdf format.
 
 =head1  SYNOPSIS
@@ -1204,7 +1204,7 @@ Hexdens is distributed as a single file.
 
 =head1 COPYRIGHT
 
-Copyright 2003, 2011, 2014 John Lapeyre, All rights reserved.
+Copyright 2003, 2011, 2014, 2018 John Lapeyre, All rights reserved.
 This program is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation; either version 2, or (at your option)
@@ -1412,12 +1412,12 @@ sub Shell::command_completion_function {
     }
     foreach my $command (keys %Hexdens::CommandCompletions) {
 	if ( $line =~ /^\s*se[^\s]+\s+$command\s+[^\s]*$/ ) {
-		$completion_words = $Hexdens::CommandCompletions{$command} ;
+            $completion_words = $Hexdens::CommandCompletions{$command} ;
 	}
     }
     $term->Attribs->{completion_word} = $completion_words;
     my @matches = $term->completion_matches($text,
-                                     $term->Attribs->{'list_completion_function'});
+                                            $term->Attribs->{'list_completion_function'});
     return @matches if @matches > 0;
     return (''); # '' prevents defaulting to filename completion
 }
@@ -1447,8 +1447,8 @@ sub Shell::command_completion_function {
     },
     '!' => sub { my $s = `$_[0]`; chomp($s); $s },
     'fshow' =>
-         sub { &Hexdens::print_all_parameters( $_[0] ); return undef },
-    'gset'    => sub {
+        sub { &Hexdens::print_all_parameters( $_[0] ); return undef },
+    'gset' => sub {
 	my ($opt) = @_;
 	my ($arg,$h);
 	    if ( exists $Hexdens::OptHandlers{$opt}) {
@@ -1505,9 +1505,7 @@ sub Shell::command_completion_function {
         'h' => sub { &Hexdens::show_short_help(); undef; },
         'save' => sub { &Hexdens::dump_parameters(@_); },
         'load' => sub { &Hexdens::load_parameters(@_); },
-
     );
-
 
     # perl gnu readline is a miserably fucked up package.
     # It is impossible to get simple reasonable behavior out
@@ -1519,12 +1517,12 @@ sub Shell::command_completion_function {
 sub Shell::start_readline {
     $term = Term::ReadLine->new('hexdens');
     my $module_name = $term->ReadLine();
-    &Hexdens::verbosen( "Using readline module: $module_name. ");
+    &Hexdens::verbosen("Using readline module: $module_name.");
     if ($module_name eq 'Term::ReadLine::Gnu') {
         &Hexdens::verbose( "Command line completion enabled.");
     }
     else {
-        &Hexdens::verbose( "No support for command line completion.");
+        &Hexdens::verbose("No support for command line completion.");
     }
     $term->MinLine(3); # min linelength for history. my hack makes this useless
     eval '$term->read_history( ".history.hexdens", 0, 5000 )';
@@ -1600,7 +1598,6 @@ sub Shell::run_shell {
     # fonts , etc. should be handled through a data structure
     # that also does checking with check_string_args below
     # I think that the first two examples in the perl/gnu readline manual will
-    #
 
     $term = start_readline() if ( $Hexdens::UseReadline == TRUE );
 
@@ -1609,7 +1606,6 @@ sub Shell::run_shell {
     my @batch_lines;
     print "hexdens v$VERSION  Type 'help'.\n";
 
-#    while ( scalar(@batch_lines)> 0 or defined ($input = $term->readline($prompt)) ) {
     my @coms = sort keys %ComActs;
     for ( ; ; ) {
         if ( defined $Hexdens::BatchFile ) {
@@ -2824,10 +2820,9 @@ EOSHH
        $parser->parse_string_document($docstring);
        $parser = undef;
        return $ostr;
-#       return $docstring;
    }
 
-# note that the followin relies on a particular format of the pod
+# Note that the following relies on a particular format of the pod
 # documentation, which I have not documented. But edit the pod
 # doc carefully!
 #
@@ -2860,13 +2855,11 @@ EOSHH
 	while ($line = <$fh>) {
 	    if ( $line =~ /^\=for trihelp (\w+) start/) {
 		$help_type = $1;
-#		print $help_type,"\n";
 		$option = '';
 		next;
 	    }
 	    if ( $help_type ne '' and $line =~ /^\=for trihelp $help_type stop/) {
 		$help_type = '';
-#		print "stopping\n";
 		next;
 	    }
 	    if ($help_type eq 'options' or $help_type eq 'commands' ) {
@@ -2901,7 +2894,6 @@ EOSHH
 		}
 		if ($line =~ /^=item B<([^>]+)>/ and $help_type eq 'commands') {
 		    if ($option ne '' ) {
-#                        deb $HelpInteractive{$option};
 #			$HelpInteractive{$option} = convert_pod_fragment_to_text($HelpInteractive{$option});
 		    }
 		    <$fh>;
@@ -2911,7 +2903,6 @@ EOSHH
 #                   New paragraph gives correct pod formatting: so \n
 		    $line = '[command] ' . $line . "\n";
 #		    $line = '[command] ' . $line . '';
-#                    deb "option: $option, help: $line";
 		}
 		if ($option ne '' ) {
 		    $HelpInteractive{$option} = '' unless exists $HelpInteractive{$option};
@@ -2924,7 +2915,6 @@ EOSHH
         foreach (keys %HelpInteractive) { $HelpInteractive{$_}=
                                               convert_pod_fragment_to_text($HelpInteractive{$_});}
     }
-
 
     foreach my $okey ( keys %OptHandlers ) {
         my $hand = $OptHandlers{$okey};
@@ -2949,16 +2939,11 @@ EOSHH
         my ( @vals, @names );
         my (%seen);
         foreach my $key (@okeys) {
-            #	deb("doing '$key'");
             my $opt = $hands->{$key};
             $opt = [$opt] unless ref($opt) eq 'ARRAY';
             foreach my $h (@$opt) {
                 if ( exists $h->{VAR} ) {
                     my $var = $h->{VAR};
-
-                    #		my $st = '$v{' . $var . '} = $' . $var;
-                    #		deb($st);
-                    #		eval $st;
                     if ( not defined $seen{$var} ) {
                         my $val;
                         if ( exists $h->{VARTYPE} ) {
@@ -2974,7 +2959,7 @@ EOSHH
                 }
             }
         }
-        open my $OHAND, '>' , $fname or die "Can't save hexdens state";
+        open my $OHAND, '>', $fname or die "Can't save hexdens state";
         print $OHAND "# hexdens saved state\n";
         print $OHAND Data::Dumper->Dump( \@vals, \@names );
         print $OHAND "1\n";
@@ -3065,7 +3050,7 @@ EOSHH
 # $h is entire option hash for a single option
 # $val is value that user is attempting to set
     sub check_value_type {
-        my ( $val, $h ) = @_;
+        my ($val, $h) = @_;
         return $val unless exists $h->{CHK};
 	my ($code,$res);
 	if ( exists $h->{VALTYPE} and $h->{VALTYPE} eq 'string' and
@@ -3163,9 +3148,8 @@ EOSHH
         return 1;
     }
 
-    # return 1 if number is an integer,
-    # undef, otherwise.
-    # don't accept leading zeroes
+    # return 1 if number is an integer, undef otherwise.
+    # don't accept leading zeroes.
     sub is_integer {
         my $num = shift;
         $num =~ s/^\s+//;
@@ -3612,10 +3596,6 @@ sub set_output_file_names {
     $Pdffile = "$infile.pdf";
     $Epsfile = "$infile.eps";
     $Ipefile = "$infile.ipe";
-    # print $Psfile, "\n";
-    # print $Pdffile, "\n";
-    # print $Epsfile, "\n";
-    # print $Ipefile, "\n";
 }
 
 # use this if the output format has changed to change the suffix.
@@ -3643,12 +3623,9 @@ our ( $DocTypeLine, $ShowPage, $PaperComments );
 # ps command to switch colors; ps procedure to
 # draw polygon; ps procedure for filling polygon
 our ( $SetDensityColor, $Polypath, $WhichFill );
-
 # will be computed by gs and then inserted into file on second pass.
 our $BoundingBox = '';
-
 our $WhiteBox = '';
-
 # for postscript
 our $PageSize      = '';
 our $TranslatePlot = '';
@@ -3718,8 +3695,8 @@ sub show_html_page {
     }
 }
 
-#  initialize()  Read parameters from the files .hexdens
-#    and infilename.p and eval the perl code therein.
+#  Read parameters from the files .hexdens
+#  and infilename.p and eval the perl code therein.
 sub initialize {
     if ( -e $Initfilename ) {
         verbose("Reading parameters from '$Initfilename'.");

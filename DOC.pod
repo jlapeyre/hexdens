@@ -47,7 +47,7 @@ This file is organized (!) as follows from top to bottom:
 
 =head1  NAME
 
-B<hexdens> v0.26 --  create density plots on a triangular or square lattice in postscript
+B<hexdens> v0.27 --  create density plots on a triangular or square lattice in postscript
 or pdf format.
 
 =head1  SYNOPSIS
@@ -81,7 +81,8 @@ pdf viewer and enter interactive mode.
 C<hexdens -tri data.dat> -- write a density plot data.dat.pdf of data on a triangular
 lattice from a file with lines of the form 'x y val', where at least one of the nearest
 neighbors to the first point is present. (There can be 'holes' or missing points in the
-remainder of the data set.)
+remainder of the data set.) If the data lines are of the form 'x y', then C<val> is assumed
+to be C<1.0>
 
 =head2 Why another plotting program?
 
@@ -1002,7 +1003,8 @@ the  perl readline libraries installed (only the perl gnu readline library provi
 
 B<-autodata> B<-noautodata>
 (default is set) Attempt to detect the data file format. A line with three columns of
-data is interpreted as "x y val". A line with more data on a line is assumed to be
+data is interpreted as "x y val". A line with two columns of data is interpreted
+as "x y 1.0". A line with more than three numbers on a line is assumed to be
 on a grid ('grided') If B<-grided> is set, then this detection is overriden even
 if B<-autodata> is set. For instance, if the data is intended to be on a grid that is
 three data points wide (rather uncommon), each line will be misinterpreted

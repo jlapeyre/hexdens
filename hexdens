@@ -347,7 +347,7 @@ preferrable.
 =for trihelp commands stop
 
 These are commands corresponding to
-the commandline options of the same names described below.
+the command line options of the same names described below.
 
 =for trihelp commands start
 
@@ -1073,7 +1073,7 @@ Rotate the plot by 90 degrees.
 =head2  Miscellaneous:
 
 B<-readline> B<-noreadline>
-If set, (some of) command history, commandline editing and command completion are
+If set, (some of) command history, command line editing and command completion are
 enabled. This only works in interactive mode and depends on having one of
 the  perl readline libraries installed (only the perl gnu readline library provides completion).
 
@@ -2362,7 +2362,7 @@ sub ourwhich {
 #=====================================================================================#
 
 #============================================================================
-# Process Commandline Options
+# Process Command Line Options
 
 =begin comment
 
@@ -3225,7 +3225,7 @@ EOSHH
                             if (    exists $h->{VALTYPE}
                                 and $h->{VALTYPE} eq 'bool'
                                 and $opth->{$key} == 0 )
-                            {                        # negation ! on commandline
+                            {                        # negation ! on command line
                                 $val = 1 - $val;
                             }
                             if ( exists $setflags->{UNSET} ) {
@@ -3566,7 +3566,7 @@ EOSHH
 # options that are more complex than most; cannot be used from command line easily
 #sub handle_interactive_only
 
-# END Process Commandline Options
+# END Process Command Line Options
 #============================================================================
 
 #=====================================================================================#
@@ -4536,7 +4536,7 @@ sub do_example {
         &{ $exdat->{DATFUNC} }( $exdat->{RANGE}, $exdat->{FUNC}, $name );
     }
     if ( $PSFormat eq 'ps' )
-    {    # copy the psformat given on the commandline that runs this example
+    {    # copy the psformat given on the command line that runs this example
         $args    .= ' -ps ';
         $outbase .= ".ps";
     }

@@ -47,7 +47,7 @@ This file is organized (!) as follows from top to bottom:
 
 =head1  NAME
 
-B<hexdens> v0.23 --  create density plots on a triangular or square lattice in postscript
+B<hexdens> v0.24 --  create density plots on a triangular or square lattice in postscript
 or pdf format.
 
 =head1  SYNOPSIS
